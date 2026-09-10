@@ -1,0 +1,6 @@
+import {
+  "yuanqi/moon-trace/src/trace" @trace,
+  "yuanqi/moon-trace/src/storage" @storage,
+}
+
+pkgtype(kind: "library")

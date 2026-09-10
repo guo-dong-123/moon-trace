@@ -1,0 +1,5 @@
+import {
+  "yuanqi/moon-trace/src/trace" @trace,
+}
+
+pkgtype(kind: "executable")

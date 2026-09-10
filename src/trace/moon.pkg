@@ -1,0 +1,7 @@
+import {
+  "moonbitlang/core/ref" @ref,
+  "moonbitlang/core/json" @json,
+  "moonbitlang/core/debug" @debug,
+}
+
+pkgtype(kind: "library")

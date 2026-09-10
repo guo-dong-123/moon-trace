@@ -1,0 +1,9 @@
+import {
+  "yuanqi/moon-trace/src/storage" @storage,
+  "yuanqi/moon-trace/src/tui" @tui,
+  "yuanqi/moon-trace/src/exporter" @exporter,
+  "moonbitlang/core/env" @env,
+  "moonbitlang/x/fs" @fs,
+}
+
+pkgtype(kind: "executable")

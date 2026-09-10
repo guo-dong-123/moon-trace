@@ -1,0 +1,21 @@
+# MoonBit build artifacts
+_build/
+*.wasm
+*.wat
+
+# Dependencies (managed by moon)
+.mooncakes/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Test outputs
+/tmp/
