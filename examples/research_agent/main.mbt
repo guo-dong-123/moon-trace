@@ -4,7 +4,7 @@
 struct SearchResult {
   title : String
   snippet : String
-}
+} derive(Show)
 
 fn search_web(query : String) -> Array[SearchResult] {
   // Simulated web search

@@ -77,7 +77,7 @@ pub fn current_trace() -> Option[Trace] {
 }
 
 /// Execute a body within a named span, automatically recording input/output/duration/errors.
-pub fn[T] span(name : String, input : Option[String], body : () -> T raise Failure) -> T raise Failure {
+pub fn[T : Show] span(name : String, input : Option[String], body : () -> T raise Failure) -> T raise Failure {
   let tracer = global_tracer.val
 
   // Auto-start a trace if none exists
@@ -107,7 +107,7 @@ pub fn[T] span(name : String, input : Option[String], body : () -> T raise Failu
   let result = try {
     let v = body()
     let end = now_ms()
-    span.finish(end, None)
+    span.finish(end, Some(v.to_string()))
     match tracer.current_trace {
       Some(t) => t.update_span(span)
       None => ()
