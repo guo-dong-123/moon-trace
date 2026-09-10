@@ -19,3 +19,5 @@ Thumbs.db
 
 # Test outputs
 /tmp/
+*.docx
+*.pdf
