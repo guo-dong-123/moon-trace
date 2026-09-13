@@ -19,6 +19,14 @@ When building AI agents, understanding *what happened* during an execution is as
 
 ### 1. Add MoonTrace to your project
 
+Clone this repository and update the MoonBit registry before building:
+
+```bash
+git clone https://github.com/guo-dong-123/moon-trace.git
+cd moon-trace
+moon update
+```
+
 ```moonbit
 // moon.pkg
 import {
@@ -53,7 +61,7 @@ fn run_agent(query : String) -> String {
     None => ()
     Some(trace) => {
       let store = @storage.JsonFileStore::default()
-      store.save(trace)
+      ignore(store.save(trace))
     }
   }
 
@@ -167,20 +175,24 @@ Each exported HTML file includes:
 ## Development
 
 ```bash
-# Build
+# Update dependencies and build
+moon update
 moon build
 
 # Run example agent
 moon run examples/research_agent
 
-# Run CLI
+# Run CLI from this checkout
 moon run src/cli list
 moon run src/cli show <trace_id>
 moon run src/cli export <trace_id> output.html
 
-# Run tests
+# Run executable demonstrations
 moon run examples/storage_test
 moon run examples/tui_test
+
+# Run package tests
+moon test
 ```
 
 ## Requirements
