@@ -1,163 +1,135 @@
-# MoonTrace 项目规划书
+# MoonTrace 项目申报材料
 
-## 一、项目背景与痛点
+## 一、项目概述
 
-随着 AI Agent 应用的快速发展，开发者面临一个普遍难题：**Agent 的执行过程是一个黑盒**。当 Agent 输出错误结果或执行异常时，开发者很难快速定位问题出在哪一步——是规划阶段出错、工具调用失败、还是上下文丢失？
+MoonTrace 是一个使用 MoonBit 编写的 Agent 执行轨迹观测与调试工具。它通过轻量的闭包式 API 记录 Agent 的规划步骤、工具调用、输入输出、耗时、事件和错误，并提供终端查看与 HTML 导出能力。
 
-现有解决方案（如 LangSmith）主要面向 Python 生态，而 MoonBit 作为一门新兴的高性能语言，在 Agent 可观测性领域还是空白。本次黑客松中已有多个 Agent 框架项目，但**没有一个专注于 Agent 执行轨迹的观测与调试**。
+项目面向使用 MoonBit 开发 Agent、工具调用工作流和自动化程序的开发者，目标是让一次 Agent 执行从“只看到最终答案”变成“可以检查完整过程”。MoonTrace 不依赖云端服务或 API key，适合本地开发、调试和教学演示。
 
-MoonTrace 正是为了填补这一空白：为 MoonBit 生态提供一个轻量、原生的 Agent 执行轨迹观测工具。
+## 二、问题与目标
 
-## 二、项目目标
+Agent 的最终输出通常不足以解释程序为什么得到这个结果。一次请求可能经过规划、检索、计算、知识库访问和回答生成等多个步骤。出现错误时，开发者需要知道哪一个步骤失败、失败发生在调用链的什么位置、当时传入和返回了什么，以及错误是否触发了降级逻辑。
 
-- **零配置埋点**：开发者只需用 `@trace.span` 包裹函数，即可自动记录耗时、输入输出、错误信息
-- **嵌套调用追踪**：自动建立 Agent 内部的调用层级树，清晰展示"规划→工具调用→回答"的完整链路
-- **多维度查询**：按名称、状态（成功/失败）、时间范围过滤历史执行记录
-- **多端查看**：终端 TUI 快速查看 + HTML 交互式时间线导出，满足不同调试场景
-- **纯 MoonBit 实现**：无外部服务依赖，单文件存储，开箱即用
+MoonBit 生态中缺少一个面向 Agent 执行过程的原生、轻量调试工具。MoonTrace 的目标是提供一套不依赖外部观测服务的基础能力：
 
-## 三、技术方案与架构
+1. 用一行闭包式调用记录一个 Agent 步骤；
+2. 自动建立嵌套调用的父子关系；
+3. 自动记录成功、失败、输入、输出和耗时；
+4. 将 trace 保存为可回读的 JSON 文件；
+5. 通过 CLI、终端树和 HTML 页面检查执行过程。
 
-### 3.1 整体架构
+## 三、产品能力
 
-```
-┌─────────────────────────────────────────────────┐
-│                  用户 Agent 代码                  │
-│  @trace.span("agent.run", input, || { ... })    │
-└──────────────────────┬──────────────────────────┘
-                       │ 埋点调用
-┌──────────────────────▼──────────────────────────┐
-│              trace 核心 SDK 层                    │
-│  Tracer 单例 │ Span 树 │ 事件 │ 元数据 │ 异步传播  │
-└──────────────────────┬──────────────────────────┘
-                       │ 序列化 (ToJson/FromJson)
-┌──────────────────────▼──────────────────────────┐
-│              storage 存储层                       │
-│  MemoryStore │ JsonFileStore │ 索引 │ 查询过滤     │
-└──────────────────────┬──────────────────────────┘
-                       │
-          ┌────────────┴────────────┐
-          ▼                         ▼
-┌─────────────────┐     ┌─────────────────────┐
-│   TUI 终端查看器  │     │   HTML 导出器         │
-│  列表 │ 详情树    │     │  可折叠树 │ 时间线     │
-└─────────────────┘     └─────────────────────┘
-          ▲                         ▲
-          └────────────┬────────────┘
-                       │
-              ┌────────▼────────┐
-              │   CLI 命令行     │
-              │ list/show/export│
-              └─────────────────┘
+### 3.1 Agent 埋点
+
+开发者可以使用以下 API 包裹任意 Agent 步骤：
+
+```moonbit
+let result = @trace.span("tool.web_search", Some(query), () => {
+  search_web(query)
+})
 ```
 
-### 3.2 核心数据模型
+多个嵌套 span 可以表示“规划 → 搜索 → 计算 → 综合回答”的调用树，调用方不需要修改原有函数签名。
 
-- **Trace**：一次完整的 Agent 执行，包含多个 Span
-- **Span**：单个操作单元（如一次工具调用、一个思考步骤），记录名称、开始/结束时间、耗时、输入、输出、状态、错误信息
-- **SpanEvent**：Span 内的自定义事件（如"开始思考"、"调用降级策略"）
-- **SpanStatus**：Running / Ok / Error / Skipped 四种状态
+### 3.2 执行信息记录
 
-### 3.3 关键技术决策
+每个 span 记录名称、父 span、开始和结束时间、持续时间、输入、输出、状态、错误信息、事件和元数据。墙上时钟用于保存可读的执行时间，单调时钟用于计算持续时间，避免系统时间调整导致耗时异常。
 
-| 决策点 | 选择 | 理由 |
-|--------|------|------|
-| 时间戳 | 墙上时钟 + 单调时钟 | 墙上时钟用于持久化时间；单调时钟用于计算 span 耗时，避免系统时间调整造成负时长 |
-| 存储格式 | 单 trace 单 JSON 文件 + index.json 索引 | 人类可读、易调试、无需数据库依赖 |
-| 错误处理 | `try/catch` + 自动捕获 | Span 闭包内自动捕获错误并标记状态，不中断外层执行 |
-| Output 记录 | `Show` trait 泛型约束 | 自动将任意返回值序列化为字符串，无需手动转换；对 String 类型返回原始值 |
-| 异步传播 | `capture_context` / `with_context` | 显式传递 Span 上下文，避免隐式全局状态在异步中错乱 |
-| HTML 导出 | 自包含单文件（内联 CSS/JS） | 无需服务器，直接浏览器打开即可分享 |
+当闭包抛出错误时，MoonTrace 会把当前 span 标记为错误，同时重新抛出原错误，保持业务代码原有的错误传播行为。外层 Agent 可以捕获错误并继续执行降级路径。
 
-## 四、已实现功能（当前进度）
+### 3.3 本地存储与查看
 
-### ✅ Phase 1：核心数据模型 + 埋点 SDK
-- Trace / Span / SpanEvent / SpanStatus 数据结构
-- 全局 Tracer 单例，`start_trace` / `end_trace` 生命周期管理
-- `@trace.span(name, input, body)` 闭包式埋点 API
-- 嵌套 Span 自动建立父子关系
-- 自动记录耗时、input、output、status
-- 错误自动捕获（捕获后重新抛出，不改变原有控制流）
-- `add_event` / `set_metadata` 辅助 API
-- `print_trace` 树形打印
-- `capture_context` / `with_context` 异步上下文传播
+项目提供内存存储和 JSON 文件存储。JSON 存储使用单条 trace 一个文件和 `index.json` 索引，默认目录为 `~/.moontrace/traces/`，也可以通过 `MOONTRACE_DIR` 指定目录。
 
-### ✅ Phase 2：存储层
-- `TraceSummary` 列表摘要结构
-- `TraceFilter` 查询过滤器（名称模糊匹配、错误过滤、时间范围）
-- `MemoryStore` 内存存储（save / load / list / delete）
-- `JsonFileStore` JSON 文件持久化（默认 `~/.moontrace/traces/`）
-- `index.json` 索引加速列表查询
-- `query_summaries` 多条件过滤查询
+CLI 提供以下命令：
 
-### ✅ Phase 3：TUI 终端查看器
-- ANSI 颜色编码（绿色=成功，红色=错误，黄色=运行中）
-- 列表视图：编号、Trace ID、根 Span 名称、Span 数、状态
-- 详情视图：统计信息 + 可折叠树形结构 + input/output 展示
-- Unicode 树形连接线（├── └── │）
+```text
+moontrace list
+moontrace show <trace_id>
+moontrace export <trace_id> [output.html]
+moontrace export-all [directory]
+moontrace delete <trace_id>
+```
 
-### ✅ Phase 4：CLI + HTML 导出
-- CLI 命令：`list` / `show <id>` / `export <id> [out]` / `export-all [dir]` / `delete <id>` / `help`
-- `MOONTRACE_DIR` 环境变量自定义存储路径
-- HTML 导出：暗色主题、统计卡片、可折叠 Span 树、横向时间线
-- 批量导出 + 索引页
+终端查看器展示 trace 摘要和带颜色的嵌套树。HTML 导出器生成自包含页面，包含统计卡片、可折叠 span 树和时间线。
 
-### ✅ Phase 5：示例 Agent
-- 完整的 Research Agent 示例，演示多步骤工作流埋点
-- 包含成功路径、工具失败降级、知识库超时等真实场景
-- 端到端验证：埋点 → 存储 → CLI 查看 → HTML 导出
+## 四、技术实现
 
-### ✅ Phase 6：打磨与提交
-- `moon build` / `moon test` 通过；当前工具链仍有 `Show` API 弃用提示，详见 README
-- **15 个正式单元测试全部通过**（trace 包 6 个 + storage 包 8 个 + exporter 包 1 个）
-- README 文档（快速开始、API 参考、架构说明、开发指南）
-- 项目申报书（本文档）
-- Git 仓库保留功能提交与验证记录
-- MIT 开源许可证
+项目由五个模块组成：
 
-## 五、质量保证
+| 模块 | 作用 |
+|---|---|
+| `trace` | Trace、Span、事件、元数据、生命周期和上下文传播 |
+| `storage` | MemoryStore、JsonFileStore、索引和过滤查询 |
+| `tui` | 终端列表视图与详情树 |
+| `exporter` | 自包含 HTML 和时间线导出 |
+| `cli` | list、show、export、export-all、delete、help 命令 |
 
-| 指标 | 数值 |
-|------|------|
-| 源码文件 | 15 个 `.mbt` 文件 |
-| 代码行数 | ~2067 行 |
-| 单元测试 | 15 个，全部通过 |
-| 示例程序 | 4 个可运行示例 |
-| 构建状态 | 0 错误，存在弃用提示 |
-| 测试覆盖 | 核心数据模型、存储层、错误捕获、嵌套 Span、事件/元数据、JSON 持久化 |
+核心状态由 tracer 管理。嵌套 span 创建时读取当前 span 作为父节点，完成或失败时更新对应记录。上下文 API `capture_context` / `with_context` 用于显式传递 trace 上下文。
 
-测试覆盖的核心场景：
-- Span 输入输出捕获
-- 嵌套 Span 父子关系建立
-- 错误 Span 自动捕获与错误信息记录
-- 自定义事件与元数据
-- Span 耗时记录
-- MemoryStore 增删改查
-- JsonFileStore 磁盘持久化与回读
-- 多条件查询过滤（错误过滤、名称模糊匹配）
+项目完全使用 MoonBit 实现，不依赖 Python、Node.js、数据库或远程观测服务；当前外部依赖仅为 `moonbitlang/x@0.5.4` 的文件系统能力。
 
-## 六、技术亮点
+## 五、MVP 完成情况
 
-1. **MoonBit 原生实现**：完全利用 MoonBit 的类型系统、derive 宏、闭包等特性，无 FFI、无外部运行时
-2. **零侵入埋点**：闭包式 API 不需要修改函数签名，一行代码即可接入
-3. **错误透明捕获**：Span 自动捕获错误并标记状态，同时保持原有的错误传播语义
-4. **自包含 HTML 导出**：生成的 HTML 文件不依赖任何外部资源，可直接分享
-5. **轻量存储**：JSON 文件 + 索引，无需数据库，适合本地开发和小型项目
+当前 MVP 已经具备从埋点到结果检查的完整闭环：
 
-## 七、后续规划（黑客松后）
+- Agent 步骤可以形成嵌套 trace 树；
+- 工具调用成功和失败状态都能被记录；
+- 失败会保留错误信息，并且不会破坏外层 span 栈；
+- trace 可以保存到 JSON 文件并重新读取；
+- CLI 可以列出和查看历史 trace；
+- trace 可以导出为自包含 HTML；
+- 示例包含 Web 搜索、计算器、知识库超时和降级回答。
 
-- [ ] 实时流式追踪（WebSocket 推送 Span 到 Web UI）
-- [ ] 性能分析：Span 耗时占比饼图、慢操作 Top N
-- [ ] Trace 对比：两次执行的差异对比
-- [ ] 采样策略：高流量下的采样率控制
-- [ ] 多后端存储：SQLite、远程 HTTP 服务
-- [ ] OpenTelemetry 兼容导出
+MVP 验证结果：
 
-## 八、项目信息
+```text
+moon build       通过
+moon test        15 个测试通过，0 个失败
+demo_agent       生成嵌套工具调用 trace
+research_agent   生成 3 条 trace，包含成功和错误路径
+CLI              list / show / export 验证通过
+```
+
+研究型 Agent 示例不调用真实服务，使用可控的模拟工具稳定复现成功、失败和降级流程，评审无需 API key 即可运行。
+
+## 六、项目特色
+
+1. **MoonBit 原生**：使用 MoonBit 类型系统、闭包和错误处理机制实现 Agent 观测能力。
+2. **接入成本低**：闭包式 `span` API 不要求改变被观测函数的接口。
+3. **错误信息完整**：错误状态、错误文本和调用层级同时保留，并维持原有错误传播语义。
+4. **本地优先**：JSON 文件即可完成存储、回读和调试，不要求部署服务。
+5. **结果易分享**：导出的 HTML 文件可直接在浏览器中打开。
+
+## 七、演示方式
+
+评审可以执行以下命令完成验证：
+
+```bash
+git clone https://github.com/guo-dong-123/moon-trace.git
+cd moon-trace
+moon update
+moon build
+moon test
+moon run examples/demo_agent
+MOONTRACE_DIR=/tmp/moontrace-mvp moon run examples/research_agent
+MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli list
+MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli show trace_1
+MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli export trace_1 /tmp/moontrace-mvp/trace_1.html
+```
+
+基础 Demo 展示 `agent_think`、`tool.web_search`、`tool.calculator` 和 `tool.knowledge_base` 的嵌套关系。研究型 Agent 展示正常查询、知识库不可用和回答降级三个执行结果。
+
+## 八、后续方向
+
+在当前本地调试闭环的基础上，后续可以增加性能分析、trace 对比、采样策略、实时查看和 OpenTelemetry 兼容导出。这些方向属于 MVP 之后的扩展，不影响当前项目完成 Agent 追踪、存储、查看和导出的核心目标。
+
+## 九、项目信息
 
 - **项目名称**：MoonTrace
 - **GitHub 仓库**：https://github.com/guo-dong-123/moon-trace
-- **技术栈**：MoonBit（纯原生实现）
-- **代码规模**：15 个源文件，~2067 行代码，15 个单元测试
-- **依赖**：`moonbitlang/x@0.5.4`（仅文件系统访问）
+- **技术栈**：MoonBit
+- **规模**：15 个 `.mbt` 文件，约 2067 行代码
+- **测试**：15 个正式单元测试，全部通过
 - **许可证**：MIT
