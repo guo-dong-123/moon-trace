@@ -1,6 +1,6 @@
 // Global tracer state and span API
 
-struct Tracer {
+priv struct Tracer {
   mut current_trace : Option[Trace]
   mut span_stack : Array[String]
   mut span_clocks : Map[String, @bench.Timestamp]

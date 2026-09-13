@@ -67,11 +67,11 @@ test "nested_spans_form_tree" {
       for sp in trace.spans.values() {
         if sp.name == "parent" {
           parent_found = true
-          assert_true(sp.parent_id.is_none())
+          assert_true(sp.parent_id is None)
         }
         if sp.name == "child_1" || sp.name == "child_2" {
           child_count = child_count + 1
-          assert_true(sp.parent_id.is_some())
+          assert_true(sp.parent_id is Some(_))
         }
       }
       assert_true(parent_found)
@@ -196,7 +196,7 @@ test "trace_duration_recorded" {
           match trace.spans.get(id) {
             None => inspect("no span", content="span")
             Some(sp) => {
-              assert_true(sp.duration_ms.is_some())
+              assert_true(sp.duration_ms is Some(_))
               assert_true(is_ok_status(sp.status))
             }
           }

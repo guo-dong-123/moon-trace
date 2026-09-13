@@ -29,7 +29,7 @@ test "memory_store_save_and_load" {
   let tid = trace.id
   store.save(trace)
   let loaded = store.load(tid)
-  assert_true(loaded.is_some())
+  assert_true(loaded is Some(_))
   match loaded {
     None => inspect("none", content="some")
     Some(t) => {
@@ -117,7 +117,7 @@ test "json_file_store_roundtrip" {
   assert_true(store.save(trace))
 
   let loaded = store.load(tid)
-  assert_true(loaded.is_some())
+  assert_true(loaded is Some(_))
   match loaded {
     None => inspect("none", content="some")
     Some(t) => {
