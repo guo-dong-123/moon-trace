@@ -11,15 +11,15 @@ fn make_sample_trace(name : String, with_error : Bool) -> @trace.Trace raise Fai
     }))
     if with_error {
       try {
-        @trace.span("call_knowledge_base", Some("{\"query\": \"weather\"}"), () => {
+        @trace.span("tool.knowledge_base", Some("{\"query\": \"agent observability\"}"), () => {
           raise Failure("Knowledge base timeout after 5000ms")
         })
       } catch {
         Failure(_) => ignore("fallback used")
       }
     } else {
-      ignore(@trace.span("call_weather_api", Some("{\"city\": \"Shanghai\"}"), () => {
-        "{\"temp\": 25, \"condition\": \"sunny\"}"
+      ignore(@trace.span("tool.web_search", Some("{\"query\": \"MoonBit tracing\"}"), () => {
+        "[{\"title\": \"MoonBit Guide\", \"snippet\": \"Agent observability\"}]"
       }))
     }
     "The answer is 4"
