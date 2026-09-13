@@ -112,6 +112,40 @@ test "error_span_captures_error" {
   }
 }
 
+test "failed_span_does_not_corrupt_parent_stack" {
+  ignore(start_trace())
+  ignore(span("parent", None, () => {
+    try {
+      span("failing_child", None, () => {
+        raise Failure("expected failure")
+      })
+    } catch {
+      Failure(_) => ()
+    }
+    ignore(span("sibling", None, () => {
+      "ok"
+    }))
+    "parent_result"
+  }))
+  match end_trace() {
+    None => inspect("no trace", content="trace")
+    Some(trace) => {
+      match trace.root_span_id {
+        None => inspect("no root", content="root")
+        Some(root_id) => {
+          let mut child_count = 0
+          for child in trace.spans.values() {
+            if child.parent_id == Some(root_id) {
+              child_count = child_count + 1
+            }
+          }
+          assert_true(child_count == 2)
+        }
+      }
+    }
+  }
+}
+
 test "add_event_and_metadata" {
   ignore(start_trace())
   ignore(span("span_with_events", None, () => {

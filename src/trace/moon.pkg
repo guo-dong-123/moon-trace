@@ -1,4 +1,6 @@
 import {
+  "moonbitlang/core/bench" @bench,
+  "moonbitlang/core/env" @env,
   "moonbitlang/core/ref" @ref,
   "moonbitlang/core/json" @json,
   "moonbitlang/core/debug" @debug,

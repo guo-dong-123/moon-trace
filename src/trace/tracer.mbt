@@ -3,6 +3,7 @@
 struct Tracer {
   mut current_trace : Option[Trace]
   mut span_stack : Array[String]
+  mut span_clocks : Map[String, @bench.Timestamp]
   mut next_id : Int
 }
 
@@ -10,6 +11,7 @@ fn Tracer::new() -> Tracer {
   {
     current_trace: None,
     span_stack: [],
+    span_clocks: Map([]),
     next_id: 1,
   }
 }
@@ -37,13 +39,19 @@ fn Tracer::current_span_id(self : Tracer) -> Option[String] {
 // Global singleton
 let global_tracer : @ref.Ref[Tracer] = @ref.Ref(Tracer::new())
 
-// Monotonic timestamp counter (Phase 1: simulated clock)
-let time_counter : @ref.Ref[Int] = @ref.Ref(0)
-
 fn now_ms() -> Int {
-  let t = time_counter.val
-  time_counter.val = t + 1
-  t
+  @env.now().to_int()
+}
+
+fn duration_end_ms(tracer : Tracer, span_id : String, start_time_ms : Int) -> Int {
+  match tracer.span_clocks.get(span_id) {
+    None => start_time_ms
+    Some(clock) => {
+      tracer.span_clocks.remove(span_id)
+      let elapsed_ms = (@bench.monotonic_clock_end(clock) / 1000.0).to_int()
+      start_time_ms + (if elapsed_ms < 0 { 0 } else { elapsed_ms })
+    }
+  }
 }
 
 /// Start a new trace. Must be called before any span.
@@ -53,6 +61,7 @@ pub fn start_trace() -> String {
   let trace = Trace::new(trace_id, now_ms())
   tracer.current_trace = Some(trace)
   tracer.span_stack = []
+  tracer.span_clocks = Map([])
   trace_id
 }
 
@@ -95,6 +104,7 @@ pub fn[T : Show] span(name : String, input : Option[String], body : () -> T rais
   let span_id = tracer.gen_id()
   let start = now_ms()
   let span = Span::new(span_id, parent_id, trace_id, name, start, input)
+  tracer.span_clocks[span_id] = @bench.monotonic_clock_start()
 
   // Register span in trace and push to stack
   match tracer.current_trace {
@@ -106,7 +116,7 @@ pub fn[T : Show] span(name : String, input : Option[String], body : () -> T rais
   // Execute body with error capture
   let result = try {
     let v = body()
-    let end = now_ms()
+    let end = duration_end_ms(tracer, span_id, start)
     span.finish(end, Some(v.to_string()))
     match tracer.current_trace {
       Some(t) => t.update_span(span)
@@ -115,12 +125,13 @@ pub fn[T : Show] span(name : String, input : Option[String], body : () -> T rais
     v
   } catch {
     Failure(msg) => {
-      let end = now_ms()
+      let end = duration_end_ms(tracer, span_id, start)
       span.finish_with_error(end, msg)
       match tracer.current_trace {
         Some(t) => t.update_span(span)
         None => ()
       }
+      ignore(tracer.span_stack.pop())
       raise Failure(msg)
     }
   }
