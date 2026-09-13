@@ -191,7 +191,7 @@ moon run src/cli export <trace_id> output.html
 moon run examples/storage_test
 moon run examples/tui_test
 
-# Run package tests
+# Run package tests (15 tests)
 moon test
 ```
 
