@@ -30,8 +30,8 @@ moon update
 ```moonbit
 // moon.pkg
 import {
-  "yuanqi/moon-trace/src/trace" @trace,
-  "yuanqi/moon-trace/src/storage" @storage,
+  "guo-dong-123/moon-trace/src/trace" @trace,
+  "guo-dong-123/moon-trace/src/storage" @storage,
 }
 ```
 

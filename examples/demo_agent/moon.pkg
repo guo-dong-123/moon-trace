@@ -1,5 +1,5 @@
 import {
-  "yuanqi/moon-trace/src/trace" @trace,
+  "guo-dong-123/moon-trace/src/trace" @trace,
 }
 
 pkgtype(kind: "executable")

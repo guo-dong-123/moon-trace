@@ -31,6 +31,13 @@ fn query_knowledge_base(question : String) -> String raise Failure {
   "The answer can be found in the documentation."
 }
 
+fn get_store() -> @storage.JsonFileStore {
+  match @env.get_env_var("MOONTRACE_DIR") {
+    None => @storage.JsonFileStore::default()
+    Some(dir) => @storage.JsonFileStore::new(dir)
+  }
+}
+
 fn run_research_agent(user_query : String) -> String raise Failure {
   // Top-level trace: entire agent execution
   ignore(@trace.start_trace())
@@ -98,7 +105,7 @@ fn run_research_agent(user_query : String) -> String raise Failure {
   match @trace.end_trace() {
     None => ()
     Some(trace) => {
-      let store = @storage.JsonFileStore::default()
+      let store = get_store()
       ignore(store.save(trace))
       println("Trace saved: " + trace.id + " (" + "\{trace.spans.length()}" + " spans)")
     }
@@ -128,7 +135,10 @@ fn main raise Failure {
   println(answer3)
 
   println("\n=== Done ===")
-  println("Traces saved to ~/.moontrace/traces/")
+  match @env.get_env_var("MOONTRACE_DIR") {
+    None => println("Traces saved to ~/.moontrace/traces/")
+    Some(dir) => println("Traces saved to " + dir)
+  }
   println("View with: moontrace list")
   println("Export with: moontrace export <trace_id>")
 }

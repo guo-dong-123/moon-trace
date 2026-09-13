@@ -1,5 +1,5 @@
 import {
-  "yuanqi/moon-trace/src/trace" @trace,
+  "guo-dong-123/moon-trace/src/trace" @trace,
   "moonbitlang/core/json" @json,
   "moonbitlang/core/debug" @debug,
   "moonbitlang/core/env" @env,

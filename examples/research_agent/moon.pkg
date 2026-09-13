@@ -1,6 +1,7 @@
 import {
-  "yuanqi/moon-trace/src/trace" @trace,
-  "yuanqi/moon-trace/src/storage" @storage,
+  "moonbitlang/core/env" @env,
+  "guo-dong-123/moon-trace/src/trace" @trace,
+  "guo-dong-123/moon-trace/src/storage" @storage,
 }
 
 pkgtype(kind: "executable")
