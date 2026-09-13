@@ -42,9 +42,9 @@ fn main raise Failure {
   let t1 = make_sample_trace("handle_user_message", false)
   let t2 = make_sample_trace("api_pipeline", true)
   let t3 = make_sample_trace("data_analysis", false)
-  store.save(t1)
-  store.save(t2)
-  store.save(t3)
+  ignore(store.save(t1))
+  ignore(store.save(t2))
+  ignore(store.save(t3))
   println("Saved 3 traces to \{test_dir}\n")
 
   // Test list view

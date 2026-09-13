@@ -99,7 +99,7 @@ fn run_research_agent(user_query : String) -> String raise Failure {
     None => ()
     Some(trace) => {
       let store = @storage.JsonFileStore::default()
-      store.save(trace)
+      ignore(store.save(trace))
       println("Trace saved: " + trace.id + " (" + "\{trace.spans.length()}" + " spans)")
     }
   }

@@ -26,22 +26,24 @@ fn JsonFileStore::index_path(self : JsonFileStore) -> String {
   self.base_dir + "/index.json"
 }
 
-fn JsonFileStore::ensure_dir(self : JsonFileStore) -> Unit {
-  if !@fs.path_exists(self.base_dir) {
-    // Create parent directory first if needed
-    let home = match @env.get_env_var("HOME") {
-      None => "/tmp"
-      Some(h) => h
-    }
-    let parent = home + "/.moontrace"
-    if !@fs.path_exists(parent) {
-      try { @fs.create_dir(parent) } catch { _ => () }
-    }
-    try {
-      @fs.create_dir(self.base_dir)
-    } catch {
-      _ => ()
-    }
+fn JsonFileStore::ensure_dir(self : JsonFileStore) -> Bool {
+  if @fs.path_exists(self.base_dir) {
+    return true
+  }
+  // Create parent directory first if needed.
+  let home = match @env.get_env_var("HOME") {
+    None => "/tmp"
+    Some(h) => h
+  }
+  let parent = home + "/.moontrace"
+  if !@fs.path_exists(parent) {
+    try { @fs.create_dir(parent) } catch { _ => return false }
+  }
+  try {
+    @fs.create_dir(self.base_dir)
+    true
+  } catch {
+    _ => false
   }
 }
 
@@ -60,26 +62,35 @@ fn JsonFileStore::read_index(self : JsonFileStore) -> Array[TraceSummary] {
   }
 }
 
-fn JsonFileStore::write_index(self : JsonFileStore, summaries : Array[TraceSummary]) -> Unit {
-  self.ensure_dir()
+fn JsonFileStore::write_index(self : JsonFileStore, summaries : Array[TraceSummary]) -> Bool {
+  if !self.ensure_dir() {
+    return false
+  }
   let json = @json.to_json(summaries)
   let content = json.stringify()
   try {
     @fs.write_string_to_file(self.index_path(), content)
+    true
   } catch {
-    _ => ()
+    _ => false
   }
 }
 
-pub fn JsonFileStore::save(self : JsonFileStore, trace : @trace.Trace) -> Unit {
-  self.ensure_dir()
+pub fn JsonFileStore::save(self : JsonFileStore, trace : @trace.Trace) -> Bool {
+  if !self.ensure_dir() {
+    return false
+  }
   // Write trace file
   let json = @json.to_json(trace)
   let content = json.stringify()
-  try {
+  let trace_saved = try {
     @fs.write_string_to_file(self.trace_path(trace.id), content)
+    true
   } catch {
-    _ => ()
+    _ => false
+  }
+  if !trace_saved {
+    return false
   }
   // Update index
   let summaries = self.read_index()
@@ -119,10 +130,14 @@ pub fn JsonFileStore::delete(self : JsonFileStore, trace_id : String) -> Bool {
   if !@fs.path_exists(path) {
     return false
   }
-  try {
+  let removed = try {
     @fs.remove_file(path)
+    true
   } catch {
-    _ => ()
+    _ => false
+  }
+  if !removed {
+    return false
   }
   // Update index
   let summaries = self.read_index()
@@ -133,5 +148,4 @@ pub fn JsonFileStore::delete(self : JsonFileStore, trace_id : String) -> Bool {
     }
   }
   self.write_index(filtered)
-  true
 }

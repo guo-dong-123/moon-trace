@@ -44,8 +44,8 @@ fn test_memory_store() -> Unit raise Failure {
   let t1 = make_demo_trace("user_chat", false)
   let t2 = make_demo_trace("api_call", true)
 
-  store.save(t1)
-  store.save(t2)
+  ignore(store.save(t1))
+  ignore(store.save(t2))
 
   let list = store.list()
   println("List count: \{list.length()}")
@@ -80,9 +80,9 @@ fn test_json_file_store() -> Unit raise Failure {
   let t2 = make_demo_trace("data_pipeline", true)
   let t3 = make_demo_trace("user_chat_v2", false)
 
-  store.save(t1)
-  store.save(t2)
-  store.save(t3)
+  ignore(store.save(t1))
+  ignore(store.save(t2))
+  ignore(store.save(t3))
 
   println("Saved 3 traces")
 

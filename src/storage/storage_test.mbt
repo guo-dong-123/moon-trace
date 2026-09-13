@@ -114,7 +114,7 @@ test "json_file_store_roundtrip" {
   let store = JsonFileStore::new(test_dir)
   let trace = make_test_trace("file_op", false)
   let tid = trace.id
-  store.save(trace)
+  assert_true(store.save(trace))
 
   let loaded = store.load(tid)
   assert_true(loaded.is_some())
@@ -128,4 +128,14 @@ test "json_file_store_roundtrip" {
 
   // Clean up
   try { @fs.remove_dir(test_dir) } catch { _ => () }
+}
+
+test "json_file_store_reports_save_failure" {
+  let blocked_path = "/tmp/moontrace_save_failure"
+  try { @fs.remove_file(blocked_path) } catch { _ => () }
+  @fs.write_string_to_file(blocked_path, "not a directory")
+  let store = JsonFileStore::new(blocked_path)
+  let trace = make_test_trace("blocked_save", false)
+  assert_true(!store.save(trace))
+  try { @fs.remove_file(blocked_path) } catch { _ => () }
 }
