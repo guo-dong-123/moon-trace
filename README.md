@@ -195,6 +195,32 @@ moon run examples/tui_test
 moon test
 ```
 
+## MVP Verification
+
+The following commands verify the complete local workflow without an API key or external service:
+
+```bash
+# Build and run all tests
+moon build
+moon test
+
+# Run the Agent demo: nested tools, events, and handled tool failure
+moon run examples/demo_agent
+
+# Run the full Research Agent and persist traces in an isolated directory
+MOONTRACE_DIR=/tmp/moontrace-mvp moon run examples/research_agent
+MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli list
+MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli show trace_1
+MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli export trace_1 /tmp/moontrace-mvp/trace_1.html
+```
+
+Expected acceptance evidence:
+
+- `moon test` reports 15 passed tests.
+- The Agent demo prints a nested trace containing `agent_think`, `tool.web_search`, `tool.calculator`, and `tool.knowledge_base`.
+- The Research Agent saves three traces, including one error trace caused by a simulated knowledge-base timeout.
+- The CLI lists and displays saved traces, and exports a self-contained HTML file.
+
 ## Requirements
 
 - MoonBit toolchain (`moon` >= 0.1.20260904, `moonc` >= 0.10.12)
