@@ -1,0 +1,16 @@
+import {
+  "moonbitlang/async" @async,
+  "moonbitlang/async/io" @io,
+  "moonbitlang/async/process" @process,
+  "moonbitlang/core/env" @env,
+  "moonbitlang/core/json" @json,
+  "guo-dong-123/moon-trace/src/trace" @trace,
+  "guo-dong-123/moon-trace/src/storage" @storage,
+}
+
+warnings = "-29"
+supported_targets = "+native"
+
+options(
+  "is-main": true,
+)

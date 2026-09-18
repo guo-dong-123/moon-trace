@@ -142,6 +142,65 @@ pub fn[T : Show] span(name : String, input : Option[String], body : () -> T rais
   result
 }
 
+/// Execute an async body within a named span.
+///
+/// This is the async counterpart of `span` for network-backed agent steps such
+/// as LLM and tool API calls. The body should translate provider-specific
+/// errors to `Failure` so they are recorded consistently.
+pub async fn[T : Show] span_async(
+  name : String,
+  input : Option[String],
+  body : async () -> T raise Failure,
+) -> T raise Failure {
+  let tracer = global_tracer.val
+
+  match tracer.current_trace {
+    None => ignore(start_trace())
+    Some(_) => ()
+  }
+
+  let trace_id = match tracer.current_trace {
+    Some(t) => t.id
+    None => "unknown"
+  }
+  let parent_id = tracer.current_span_id()
+  let span_id = tracer.gen_id()
+  let start = now_ms()
+  let span = Span::new(span_id, parent_id, trace_id, name, start, input)
+  tracer.span_clocks[span_id] = @bench.monotonic_clock_start()
+
+  match tracer.current_trace {
+    Some(t) => t.add_span(span)
+    None => ()
+  }
+  tracer.span_stack.push(span_id)
+
+  let result = try {
+    let value = body()
+    let end = duration_end_ms(tracer, span_id, start)
+    span.finish(end, Some(value.to_string()))
+    match tracer.current_trace {
+      Some(t) => t.update_span(span)
+      None => ()
+    }
+    value
+  } catch {
+    Failure(msg) => {
+      let end = duration_end_ms(tracer, span_id, start)
+      span.finish_with_error(end, msg)
+      match tracer.current_trace {
+        Some(t) => t.update_span(span)
+        None => ()
+      }
+      ignore(tracer.span_stack.pop())
+      raise Failure(msg)
+    }
+  }
+
+  ignore(tracer.span_stack.pop())
+  result
+}
+
 /// Add an event to the current span.
 pub fn add_event(name : String, data : Option[String]) -> Unit {
   let tracer = global_tracer.val

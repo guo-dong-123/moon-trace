@@ -16,4 +16,5 @@ description = "Agent execution trace observability and debugging toolkit for Moo
 
 import {
   "moonbitlang/x@0.5.4",
+  "moonbitlang/async@0.20.1",
 }

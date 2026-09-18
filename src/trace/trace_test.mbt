@@ -14,6 +14,23 @@ fn is_ok_status(s : SpanStatus) -> Bool {
   }
 }
 
+async fn async_test_success() -> String raise Failure {
+  @async.sleep(1) catch {
+    _ => raise Failure("async sleep failed")
+  }
+  if false {
+    raise Failure("unreachable")
+  }
+  "response"
+}
+
+async fn async_test_failure() -> String raise Failure {
+  @async.sleep(1) catch {
+    _ => raise Failure("async sleep failed")
+  }
+  raise Failure("provider unavailable")
+}
+
 test "span_captures_input_output" {
   ignore(start_trace())
   let result = span("test_span", Some("input_data"), () => {
@@ -142,6 +159,36 @@ test "failed_span_does_not_corrupt_parent_stack" {
           assert_true(child_count == 2)
         }
       }
+    }
+  }
+}
+
+async test "async_span_captures_output_and_error" {
+  ignore(start_trace())
+  let result = span_async("async_ok", Some("request"), async_test_success)
+  inspect(result, content="response")
+  try {
+    ignore(span_async("async_error", None, async_test_failure))
+  } catch {
+    Failure(_) => ()
+  }
+  match end_trace() {
+    None => inspect("no trace", content="trace")
+    Some(trace) => {
+      assert_true(trace.spans.length() == 2)
+      let mut ok_found = false
+      let mut error_found = false
+      for sp in trace.spans.values() {
+        if sp.name == "async_ok" {
+          ok_found = is_ok_status(sp.status) && sp.output == Some("response")
+        }
+        if sp.name == "async_error" {
+          error_found = is_error_status(sp.status) &&
+            sp.error_message == Some("provider unavailable")
+        }
+      }
+      assert_true(ok_found)
+      assert_true(error_found)
     }
   }
 }

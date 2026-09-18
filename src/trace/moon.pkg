@@ -6,4 +6,8 @@ import {
   "moonbitlang/core/debug" @debug,
 }
 
+import {
+  "moonbitlang/async" @async,
+} for "test"
+
 pkgtype(kind: "library")

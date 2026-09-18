@@ -2,7 +2,7 @@
 
 > Agent execution trace observability and debugging toolkit for MoonBit.
 
-MoonTrace is a **MoonBit-native** observability tool for AI agent workflows, inspired by LangSmith. It provides lightweight tracing, storage, terminal visualization, and HTML export — all written in pure MoonBit with zero runtime dependencies beyond `moonbitlang/x`.
+MoonTrace is a **MoonBit-native** observability tool for AI agent workflows, inspired by LangSmith. It provides lightweight tracing, storage, terminal visualization, and HTML export. The core works locally; an optional example connects a real Alibaba Cloud Model Studio Agent.
 
 ## Why MoonTrace?
 
@@ -107,7 +107,8 @@ examples/
 ├── demo_agent/       # Minimal instrumentation demo
 ├── storage_test/     # Storage layer test
 ├── tui_test/         # TUI viewer test
-└── research_agent/   # Full example: multi-step research agent
+├── research_agent/   # Offline multi-step research agent
+└── bailian_agent/    # Real Qwen tool-calling agent with async traces
 ```
 
 ## Core API
@@ -119,6 +120,7 @@ examples/
 | `@trace.start_trace()` | Start a new trace, returns trace ID |
 | `@trace.end_trace()` | End current trace, returns `Option[Trace]` |
 | `@trace.span(name, input, body)` | Execute body as a span, captures input/output/duration/errors |
+| `@trace.span_async(name, input, body)` | Trace an async LLM or network-backed operation |
 | `@trace.add_event(name, data)` | Add a custom event to the current span |
 | `@trace.set_metadata(key, value)` | Attach metadata to the current span |
 | `@trace.print_trace()` | Print current trace tree to stdout |
@@ -182,6 +184,11 @@ moon build
 # Run example agent
 moon run examples/research_agent
 
+# Run the real Bailian tool-calling Agent
+BAILIAN_API_KEY='your-key' TEXT_MODEL='qwen3.7-plus' \
+  MOONTRACE_DIR=/tmp/moontrace-bailian \
+  moon run examples/bailian_agent --target native
+
 # Run CLI from this checkout
 moon run src/cli list
 moon run src/cli show <trace_id>
@@ -191,9 +198,29 @@ moon run src/cli export <trace_id> output.html
 moon run examples/storage_test
 moon run examples/tui_test
 
-# Run package tests (15 tests)
+# Run package tests
 moon test
 ```
+
+## Real Bailian Agent
+
+`examples/bailian_agent` runs a real two-turn Agent workflow:
+
+1. Qwen selects the `inspect_moontrace_mvp` tool.
+2. MoonBit executes the local tool and records its evidence.
+3. Qwen synthesizes a Chinese MVP review from the tool result.
+4. MoonTrace persists the root Agent span, both LLM spans, and the tool span.
+
+Configuration is read only from environment variables:
+
+| Variable | Required | Default |
+|----------|----------|---------|
+| `BAILIAN_API_KEY` | Yes | None |
+| `TEXT_MODEL` | No | `qwen3.7-plus` |
+| `BAILIAN_BASE_URL` | No | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| `MOONTRACE_DIR` | No | `~/.moontrace/traces/` |
+
+The API key is sent to `curl` through stdin configuration and is never placed in `curl` arguments or stored in source, traces, or HTML exports. Copy `.env.example` for the variable names, but do not commit a populated `.env` file.
 
 ## MVP Verification
 
@@ -216,7 +243,7 @@ MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli export trace_1 /tmp/moontrace-
 
 Expected acceptance evidence:
 
-- `moon test` reports 15 passed tests.
+- `moon test` reports 17 passed tests.
 - The Agent demo prints a nested trace containing `agent_think`, `tool.web_search`, `tool.calculator`, and `tool.knowledge_base`.
 - The Research Agent saves three traces, including one error trace caused by a simulated knowledge-base timeout.
 - The CLI lists and displays saved traces, and exports a self-contained HTML file.
@@ -224,7 +251,8 @@ Expected acceptance evidence:
 ## Requirements
 
 - MoonBit toolchain (`moon` >= 0.1.20260904, `moonc` >= 0.10.12)
-- `moonbitlang/x@0.5.4` (for filesystem access)
+- `moonbitlang/x@0.5.4` (filesystem access)
+- `moonbitlang/async@0.20.1` and system `curl` (real Bailian Agent example only)
 
 ## License
 
