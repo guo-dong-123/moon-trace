@@ -15,6 +15,7 @@ fn print_help() -> Unit {
   println("")
   println("Environment:")
   println("  MOONTRACE_DIR           Override trace storage directory")
+  println("  AGENT_QUERY             Override the Bailian demo question")
 }
 
 fn get_store() -> @storage.JsonFileStore {
@@ -68,8 +69,8 @@ fn cmd_export_all(dir : Option[String]) -> Unit {
   if !@fs.path_exists(out_dir) {
     try {
       @fs.create_dir(out_dir)
-    } catch {
-      _ => ()
+      } catch {
+          _ => println("Warning: failed to export a trace")
     }
   }
   let mut count = 0
@@ -93,7 +94,7 @@ fn cmd_export_all(dir : Option[String]) -> Unit {
   try {
     @fs.write_string_to_file(out_dir + "/index.html", index_html)
   } catch {
-    _ => ()
+    _ => println("Warning: failed to export index")
   }
   println("Exported " + "\{count}" + " traces to " + out_dir + "/")
 }

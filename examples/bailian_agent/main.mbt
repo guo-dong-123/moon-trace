@@ -314,7 +314,10 @@ async fn run_review_agent(
     )
   } catch {
     Failure(message) => {
-      ignore(finish_trace())
+      match finish_trace() {
+        None => ()
+        Some(trace_id) => println("Failure trace saved: " + trace_id)
+      }
       raise Failure(message)
     }
   }
@@ -337,8 +340,9 @@ async fn main {
   } else {
     base_url + "/chat/completions"
   }
-  let query =
-    "请评估 MoonTrace MVP 是否适合黑客松现场演示，并给出三项最值得展示的能力和一项当前限制。"
+  let query = @env.get_env_var("AGENT_QUERY").unwrap_or(
+    "请评估 MoonTrace MVP 是否适合黑客松现场演示，并给出三项最值得展示的能力和一项当前限制。",
+  )
 
   println("=== MoonTrace Real Agent Demo (Bailian) ===")
   println("Model: " + model)
@@ -346,7 +350,7 @@ async fn main {
     let answer = run_review_agent(api_key, endpoint, model, query)
     println("\nAgent answer:\n" + answer)
   } catch {
-    Failure(message) => println("Agent failed: " + message)
+    Failure(message) => println("Agent failed after saving its trace: " + message)
   }
 }
 
