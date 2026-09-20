@@ -13,7 +13,7 @@
 
 MoonTrace 是一个使用 MoonBit 原生实现的 Agent 执行轨迹观测与调试工具，面向使用 MoonBit 开发 AI Agent、工具调用工作流和自动化程序的开发者。它解决 Agent 执行过程不透明、工具调用失败难以定位、只能看到最终结果而无法检查中间步骤的问题。
 
-开发者可以使用 `@trace.span` 包裹规划、检索、计算、知识库访问和回答生成等步骤。MoonTrace 会记录调用层级、输入输出、事件、元数据、执行状态、错误信息和耗时，并将结果保存为本地 JSON 文件。开发者可通过 CLI 和终端树查看历史 trace，也可以导出包含统计信息、可折叠调用树和时间线的自包含 HTML 页面。项目无需云端服务或 API key，克隆仓库后即可构建、测试和运行示例。
+开发者可以使用 `@trace.span` 和 `@trace.span_async` 包裹规划、检索、计算、知识库访问、模型调用和回答生成等步骤。MoonTrace 会记录调用层级、输入输出、事件、元数据、执行状态、错误信息和耗时，并将结果保存为本地 JSON 文件。开发者可通过 CLI 和终端树查看历史 trace，也可以导出包含统计信息、可折叠调用树和时间线的自包含 HTML 页面。项目核心无需云端服务或 API key，克隆仓库后即可构建、测试和运行离线示例；另提供可选的 Bailian Agent 真实模型演示。
 
 ## 核心功能范围
 
@@ -26,13 +26,14 @@ MoonTrace 是一个使用 MoonBit 原生实现的 Agent 执行轨迹观测与调
 - 提供 `list`、`show`、`export`、`export-all` 和 `delete` CLI 命令；
 - 提供 ANSI 终端树形查看器，以及自包含 HTML 调用树和时间线导出；
 - 提供研究型 Agent 示例，覆盖 Web 搜索、计算器、知识库超时和降级回答；
-- 提供 15 个 MoonBit 单元测试，覆盖追踪、错误恢复、存储和 HTML 导出，并在 README 中提供可复现的构建与演示命令。
+- 提供真实 Bailian Qwen 工具调用示例，展示模型选择工具、MoonBit 执行工具和模型综合回答的两轮流程；
+- 提供 17 个 MoonBit 单元测试，覆盖同步与异步追踪、错误恢复、存储和 HTML 导出，并提供 CLI 指南及可复现导出证据。
 
 ## 移植或参考说明
 
 - 本项目为原创 MoonBit 项目，不是对其他语言项目源代码的直接移植；
 - 项目在概念上参考了 OpenTelemetry 的 trace/span 模型，以及 LangSmith 对 Agent 执行过程进行分步骤观测的产品思路；
 - 本项目没有复制 OpenTelemetry、LangSmith 或其他项目的源代码，数据结构、API、存储、终端查看器和 HTML 导出均使用 MoonBit 独立实现；
-- 与云端 Agent 观测平台相比，MoonTrace 当前聚焦本地开发调试，采用 JSON 文件存储，不包含真实 LLM 接入、远程服务、多用户权限或计费功能；
-- 当前第三方依赖仅为 `moonbitlang/x@0.5.4`，用于文件系统访问；
+- 与云端 Agent 观测平台相比，MoonTrace 当前聚焦本地开发调试，采用 JSON 文件存储，不包含远程 Trace 服务、多用户权限或计费功能；
+- 核心依赖为 `moonbitlang/x@0.5.4`，真实 Bailian 示例额外使用 `moonbitlang/async@0.20.1` 和系统 `curl`；
 - 本项目采用 MIT License，参考项目及概念来源不改变本项目原创实现和许可证边界。

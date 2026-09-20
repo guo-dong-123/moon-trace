@@ -2,7 +2,7 @@
 
 ## 一、项目概述
 
-MoonTrace 是一个使用 MoonBit 编写的 Agent 执行轨迹观测与调试工具。它通过轻量的闭包式 API 记录 Agent 的规划步骤、工具调用、输入输出、耗时、事件和错误，并提供终端查看与 HTML 导出能力。
+MoonTrace 是一个使用 MoonBit 编写的 Agent 执行轨迹观测与调试工具。它通过轻量的闭包式 API 记录 Agent 的规划步骤、工具调用、输入输出、耗时、事件和错误，并提供终端查看与 HTML 导出能力。项目还提供一个可选的真实 Bailian Qwen 工具调用 Agent 示例。
 
 项目面向使用 MoonBit 开发 Agent、工具调用工作流和自动化程序的开发者，目标是让一次 Agent 执行从“只看到最终答案”变成“可以检查完整过程”。MoonTrace 不依赖云端服务或 API key，适合本地开发、调试和教学演示。
 
@@ -68,7 +68,7 @@ moontrace delete <trace_id>
 
 核心状态由 tracer 管理。嵌套 span 创建时读取当前 span 作为父节点，完成或失败时更新对应记录。上下文 API `capture_context` / `with_context` 用于显式传递 trace 上下文。
 
-项目完全使用 MoonBit 实现，不依赖 Python、Node.js、数据库或远程观测服务；当前外部依赖仅为 `moonbitlang/x@0.5.4` 的文件系统能力。
+项目核心完全使用 MoonBit 实现，不依赖 Python、Node.js、数据库或远程观测服务；真实 Bailian 示例使用 `moonbitlang/async@0.20.1` 启动系统 `curl`，API Key 通过标准输入配置传递。
 
 ## 五、MVP 完成情况
 
@@ -80,19 +80,20 @@ moontrace delete <trace_id>
 - trace 可以保存到 JSON 文件并重新读取；
 - CLI 可以列出和查看历史 trace；
 - trace 可以导出为自包含 HTML；
-- 示例包含 Web 搜索、计算器、知识库超时和降级回答。
+- 示例包含 Web 搜索、计算器、知识库超时和降级回答；真实 Agent 示例包含模型工具选择、MoonBit 本地工具执行和模型综合回答。
 
 MVP 验证结果：
 
 ```text
 moon build       通过
-moon test        15 个测试通过，0 个失败
+moon test        17 个测试通过，0 个失败
 demo_agent       生成嵌套工具调用 trace
 research_agent   生成 3 条 trace，包含成功和错误路径
 CLI              list / show / export 验证通过
+bailian_agent    真实两轮工具调用成功，生成 4 个成功 Span
 ```
 
-研究型 Agent 示例不调用真实服务，使用可控的模拟工具稳定复现成功、失败和降级流程，评审无需 API key 即可运行。
+研究型 Agent 示例不调用真实服务，使用可控的模拟工具稳定复现成功、失败和降级流程，评审无需 API key 即可运行。真实 Bailian 示例是可选演示，不影响核心 MVP 的离线复现。
 
 ## 六、项目特色
 
@@ -130,6 +131,6 @@ MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli export trace_1 /tmp/moontrace-
 - **项目名称**：MoonTrace
 - **GitHub 仓库**：https://github.com/guo-dong-123/moon-trace
 - **技术栈**：MoonBit
-- **规模**：15 个 `.mbt` 文件，约 2067 行代码
-- **测试**：15 个正式单元测试，全部通过
+- **规模**：17 个 `.mbt` 文件，约 2400 行代码
+- **测试**：17 个正式单元测试，全部通过
 - **许可证**：MIT
