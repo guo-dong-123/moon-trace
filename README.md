@@ -247,6 +247,7 @@ Expected acceptance evidence:
 - The Agent demo prints a nested trace containing `agent_think`, `tool.web_search`, `tool.calculator`, and `tool.knowledge_base`.
 - The Research Agent saves three traces, including one error trace caused by a simulated knowledge-base timeout.
 - The CLI lists and displays saved traces, and exports a self-contained HTML file.
+- `docs/evidence/` contains reproducible JSON and HTML output for both successful and failed-tool runs.
 
 ## Requirements
 
