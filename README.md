@@ -86,6 +86,9 @@ moontrace compare trace_1 trace_8
 # Replay recorded outputs without calling external tools
 moontrace replay trace_1
 
+# Check a new execution against a known-good baseline
+moontrace regress trace_1 trace_8
+
 # Show detailed trace in terminal
 moontrace show <trace_id>
 

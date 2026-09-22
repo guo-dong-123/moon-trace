@@ -11,6 +11,7 @@ fn print_help() -> Unit {
   println("    --name <text>         Filter by root span name")
   println("  errors                  List only traces containing errors")
   println("  compare <a> <b>         Compare two traces by span name")
+  println("  regress <base> <new>    Check a candidate trace against a baseline")
   println("  replay <trace_id>       Replay recorded span outputs")
   println("  show <trace_id>         Show detailed trace view in terminal")
   println("  export <trace_id> [out] Export trace to HTML file (default: <id>.html)")
@@ -180,6 +181,35 @@ fn cmd_replay(trace_id : String) -> Unit {
   }
 }
 
+fn print_regression_issue(issue : @replay.RegressionIssue) -> Unit {
+  match issue {
+    @replay.MissingSpan(name) => println("- missing span: " + name)
+    @replay.AddedSpan(name) => println("- added span: " + name)
+    @replay.StatusChanged(name, before, after) => println("- status changed: " + name + " (" + before + " -> " + after + ")")
+  }
+}
+
+fn cmd_regress(baseline_id : String, candidate_id : String) -> Unit {
+  let store = get_store()
+  match (store.load(baseline_id), store.load(candidate_id)) {
+    (Some(baseline), Some(candidate)) => {
+      let report = @replay.compare_traces(baseline, candidate)
+      println("=== MoonTrace Regression Check ===")
+      println("Baseline: " + baseline_id + "  Candidate: " + candidate_id)
+      if report.passed() {
+        println("PASS: no span or status regressions detected")
+      } else {
+        println("FAIL: \{report.issue_count()} regression issue(s)")
+        for issue in report.issues {
+          print_regression_issue(issue)
+        }
+      }
+    }
+    (None, _) => println("Error: trace not found: " + baseline_id)
+    (_, None) => println("Error: trace not found: " + candidate_id)
+  }
+}
+
 fn cmd_export(trace_id : String, out_path : Option[String]) -> Unit {
   let store = get_store()
   match store.load(trace_id) {
@@ -280,6 +310,13 @@ fn main {
         println("Error: 'replay' requires a trace ID")
       } else {
         cmd_replay(args[2])
+      }
+    }
+    "regress" => {
+      if args.length() < 4 {
+        println("Error: 'regress' requires a baseline and candidate trace ID")
+      } else {
+        cmd_regress(args[2], args[3])
       }
     }
     "export" => {

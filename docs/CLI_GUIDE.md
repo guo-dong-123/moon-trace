@@ -83,6 +83,7 @@ moon run examples/bailian_agent --target native
 | `moon run src/cli show <id>` | 查看终端树 |
 | `moon run src/cli compare <a> <b>` | 对比两次执行的耗时、错误和 Span 变化 |
 | `moon run src/cli replay <id>` | 回放已记录的输出和错误，不重新调用外部工具 |
+| `moon run src/cli regress <base> <new>` | 检查新 Trace 是否缺少 Span 或改变状态 |
 | `moon run src/cli export <id> <file>` | 导出单个 HTML |
 | `moon run src/cli export-all <dir>` | 批量导出 HTML 和索引 |
 | `moon run src/cli delete <id>` | 删除指定 Trace |
