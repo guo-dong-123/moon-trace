@@ -80,6 +80,7 @@ moontrace delete <trace_id>
 - trace 可以保存到 JSON 文件并重新读取；
 - CLI 可以列出和查看历史 trace；
 - CLI 可以按错误状态和根 Span 名称筛选历史 trace；
+- CLI 可以按 Span 名称对比两次执行的耗时、错误和新增/删除步骤；
 - trace 可以导出为自包含 HTML；
 - 示例包含 Web 搜索、计算器、知识库超时和降级回答；另有独立的失败诊断 Demo 展示错误 Span 与恢复事件；真实 Agent 示例包含模型工具选择、MoonBit 本地工具执行和模型综合回答。
 

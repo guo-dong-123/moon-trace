@@ -1,4 +1,5 @@
 import {
+  "guo-dong-123/moon-trace/src/trace" @trace,
   "guo-dong-123/moon-trace/src/storage" @storage,
   "guo-dong-123/moon-trace/src/tui" @tui,
   "guo-dong-123/moon-trace/src/exporter" @exporter,

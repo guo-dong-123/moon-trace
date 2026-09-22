@@ -80,6 +80,9 @@ moontrace errors
 moontrace list --errors
 moontrace list --name research_agent
 
+# Compare two saved traces by span name
+moontrace compare trace_1 trace_8
+
 # Show detailed trace in terminal
 moontrace show <trace_id>
 
