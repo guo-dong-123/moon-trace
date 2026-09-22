@@ -83,6 +83,9 @@ moontrace list --name research_agent
 # Compare two saved traces by span name
 moontrace compare trace_1 trace_8
 
+# Replay recorded outputs without calling external tools
+moontrace replay trace_1
+
 # Show detailed trace in terminal
 moontrace show <trace_id>
 

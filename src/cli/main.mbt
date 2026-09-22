@@ -11,6 +11,7 @@ fn print_help() -> Unit {
   println("    --name <text>         Filter by root span name")
   println("  errors                  List only traces containing errors")
   println("  compare <a> <b>         Compare two traces by span name")
+  println("  replay <trace_id>       Replay recorded span outputs")
   println("  show <trace_id>         Show detailed trace view in terminal")
   println("  export <trace_id> [out] Export trace to HTML file (default: <id>.html)")
   println("  export-all [dir]        Export all traces to HTML files in directory")
@@ -155,6 +156,30 @@ fn cmd_compare(first_id : String, second_id : String) -> Unit {
   }
 }
 
+fn print_replay_result(name : String, result : @replay.ReplayResult) -> Unit {
+  match result {
+    @replay.Output(value) => println("- " + name + ": output replayed (" + "\{value.length()}" + " chars)")
+    @replay.Error(message) => println("- " + name + ": recorded error: " + message)
+    @replay.Missing => println("- " + name + ": missing from recording")
+  }
+}
+
+fn cmd_replay(trace_id : String) -> Unit {
+  let store = get_store()
+  match store.load(trace_id) {
+    None => println("Error: trace not found: " + trace_id)
+    Some(trace) => {
+      let session = @replay.ReplaySession::from_trace(trace)
+      println("=== MoonTrace Replay: " + trace_id + " ===")
+      println("Recorded spans are returned locally; external tools are not called.")
+      for span in trace.spans.values() {
+        print_replay_result(span.name, session.replay(span.name))
+      }
+      println("Remaining unconsumed span names: " + "\{session.remaining()}")
+    }
+  }
+}
+
 fn cmd_export(trace_id : String, out_path : Option[String]) -> Unit {
   let store = get_store()
   match store.load(trace_id) {
@@ -248,6 +273,13 @@ fn main {
         println("Error: 'compare' requires two trace IDs")
       } else {
         cmd_compare(args[2], args[3])
+      }
+    }
+    "replay" => {
+      if args.length() < 3 {
+        println("Error: 'replay' requires a trace ID")
+      } else {
+        cmd_replay(args[2])
       }
     }
     "export" => {

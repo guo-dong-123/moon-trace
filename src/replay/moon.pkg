@@ -1,0 +1,5 @@
+import {
+  "guo-dong-123/moon-trace/src/trace" @trace,
+}
+
+pkgtype(kind: "library")
