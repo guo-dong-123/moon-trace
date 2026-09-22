@@ -6,7 +6,10 @@ fn print_help() -> Unit {
   println("Usage: moontrace <command> [options]")
   println("")
   println("Commands:")
-  println("  list                    List all saved traces")
+  println("  list [options]          List saved traces")
+  println("    --errors              Show only traces containing errors")
+  println("    --name <text>         Filter by root span name")
+  println("  errors                  List only traces containing errors")
   println("  show <trace_id>         Show detailed trace view in terminal")
   println("  export <trace_id> [out] Export trace to HTML file (default: <id>.html)")
   println("  export-all [dir]        Export all traces to HTML files in directory")
@@ -25,9 +28,41 @@ fn get_store() -> @storage.JsonFileStore {
   }
 }
 
-fn cmd_list() -> Unit {
+fn cmd_list(filter : @storage.TraceFilter) -> Unit {
   let store = get_store()
-  println(@tui.render_trace_list(store.list()))
+  println(@tui.render_trace_list(@storage.query_summaries(store.list(), filter)))
+}
+
+fn cmd_list_args(args : Array[String]) -> Unit {
+  let mut errors = false
+  let mut name : Option[String] = None
+  let mut i = 2
+  while i < args.length() {
+    match args[i] {
+      "--errors" => errors = true
+      "--name" => {
+        if i + 1 < args.length() {
+          name = Some(args[i + 1])
+          i = i + 1
+        } else {
+          println("Error: '--name' requires a value")
+          return
+        }
+      }
+      value => {
+        println("Error: unknown list option: " + value)
+        return
+      }
+    }
+    i = i + 1
+  }
+  let filter = match (errors, name) {
+    (true, Some(value)) => @storage.TraceFilter::with_name_and_errors(value)
+    (true, None) => @storage.TraceFilter::error_only()
+    (false, Some(value)) => @storage.TraceFilter::with_name(value)
+    (false, None) => @storage.TraceFilter::new()
+  }
+  cmd_list(filter)
 }
 
 fn cmd_show(trace_id : String) -> Unit {
@@ -112,12 +147,13 @@ fn main {
   let args = @env.args()
   // args[0] = program path, args[1] = command
   if args.length() < 2 {
-    cmd_list()
+    cmd_list(@storage.TraceFilter::new())
     return
   }
   let cmd = args[1]
   match cmd {
-    "list" | "ls" => cmd_list()
+    "list" | "ls" => cmd_list_args(args)
+    "errors" => cmd_list(@storage.TraceFilter::error_only())
     "show" => {
       if args.length() < 3 {
         println("Error: 'show' requires a trace ID")

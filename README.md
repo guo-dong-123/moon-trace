@@ -75,6 +75,11 @@ fn run_agent(query : String) -> String {
 # List all traces
 moontrace list
 
+# List only failed traces or filter by root span name
+moontrace errors
+moontrace list --errors
+moontrace list --name research_agent
+
 # Show detailed trace in terminal
 moontrace show <trace_id>
 
@@ -108,6 +113,7 @@ examples/
 ├── storage_test/     # Storage layer test
 ├── tui_test/         # TUI viewer test
 ├── research_agent/   # Offline multi-step research agent
+├── failure_diagnosis/ # Failed tool plus recovery path demo
 └── bailian_agent/    # Real Qwen tool-calling agent with async traces
 ```
 
@@ -239,6 +245,10 @@ MOONTRACE_DIR=/tmp/moontrace-mvp moon run examples/research_agent
 MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli list
 MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli show trace_1
 MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli export trace_1 /tmp/moontrace-mvp/trace_1.html
+
+# Run the failure diagnosis demo
+MOONTRACE_DIR=/tmp/moontrace-failure moon run examples/failure_diagnosis
+MOONTRACE_DIR=/tmp/moontrace-failure moon run src/cli errors
 ```
 
 Expected acceptance evidence:

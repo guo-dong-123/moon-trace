@@ -45,6 +45,15 @@ pub fn TraceFilter::with_name(name : String) -> TraceFilter {
   }
 }
 
+pub fn TraceFilter::with_name_and_errors(name : String) -> TraceFilter {
+  {
+    name_contains: Some(name),
+    has_error_only: true,
+    min_start_time: None,
+    max_start_time: None,
+  }
+}
+
 fn @trace.Trace::to_summary(self : @trace.Trace) -> TraceSummary {
   let root_name = match self.root_span_id {
     None => None

@@ -79,8 +79,9 @@ moontrace delete <trace_id>
 - 失败会保留错误信息，并且不会破坏外层 span 栈；
 - trace 可以保存到 JSON 文件并重新读取；
 - CLI 可以列出和查看历史 trace；
+- CLI 可以按错误状态和根 Span 名称筛选历史 trace；
 - trace 可以导出为自包含 HTML；
-- 示例包含 Web 搜索、计算器、知识库超时和降级回答；真实 Agent 示例包含模型工具选择、MoonBit 本地工具执行和模型综合回答。
+- 示例包含 Web 搜索、计算器、知识库超时和降级回答；另有独立的失败诊断 Demo 展示错误 Span 与恢复事件；真实 Agent 示例包含模型工具选择、MoonBit 本地工具执行和模型综合回答。
 
 MVP 验证结果：
 
@@ -91,9 +92,12 @@ demo_agent       生成嵌套工具调用 trace
 research_agent   生成 3 条 trace，包含成功和错误路径
 CLI              list / show / export 验证通过
 bailian_agent    真实两轮工具调用成功，生成 4 个成功 Span
+failure_diagnosis 生成 1 个错误 Span 和 1 个 fallback 事件
 ```
 
 研究型 Agent 示例不调用真实服务，使用可控的模拟工具稳定复现成功、失败和降级流程，评审无需 API key 即可运行。真实 Bailian 示例是可选演示，不影响核心 MVP 的离线复现。
+
+项目还提供 GitHub Actions，自动执行 MoonBit 类型检查、17 个单元测试和 native 构建。
 
 ## 六、项目特色
 

@@ -32,6 +32,23 @@ MOONTRACE_DIR=/tmp/moontrace-mvp-demo moon run src/cli show trace_1
 
 `show` 输出应包含嵌套的 Agent、搜索、计算和知识库 Span，并显示失败 Span 的错误信息。
 
+筛选历史 Trace：
+
+```bash
+MOONTRACE_DIR=/tmp/moontrace-mvp-demo moon run src/cli errors
+MOONTRACE_DIR=/tmp/moontrace-mvp-demo moon run src/cli list --errors
+MOONTRACE_DIR=/tmp/moontrace-mvp-demo moon run src/cli list --name research_agent
+```
+
+## 3.1 运行失败诊断 Demo
+
+```bash
+MOONTRACE_DIR=/tmp/moontrace-failure moon run examples/failure_diagnosis
+MOONTRACE_DIR=/tmp/moontrace-failure moon run src/cli errors
+```
+
+这个 Demo 会展示一次知识库超时、错误 Span、`fallback_started` 事件和最终恢复结果。
+
 ## 4. 导出 HTML
 
 ```bash
@@ -60,6 +77,9 @@ moon run examples/bailian_agent --target native
 | 命令 | 作用 |
 |---|---|
 | `moon run src/cli list` | 列出已保存 Trace |
+| `moon run src/cli errors` | 只列出包含错误 Span 的 Trace |
+| `moon run src/cli list --errors` | 按错误状态筛选 |
+| `moon run src/cli list --name <text>` | 按根 Span 名称筛选 |
 | `moon run src/cli show <id>` | 查看终端树 |
 | `moon run src/cli export <id> <file>` | 导出单个 HTML |
 | `moon run src/cli export-all <dir>` | 批量导出 HTML 和索引 |
