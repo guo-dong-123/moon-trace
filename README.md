@@ -13,7 +13,8 @@ When building AI agents, understanding *what happened* during an execution is as
 - **Persistent storage** — traces saved as JSON files, queryable by name, status, and time range
 - **Terminal UI** — inspect traces directly in your terminal with ANSI-colored tree views
 - **HTML export** — generate self-contained interactive trace visualizations with timelines
-- **CLI** — `moontrace list`, `moontrace show`, `moontrace export`
+- **Agent replay** — feed recorded tool outputs and failures back into an Agent without calling the tool again
+- **CLI** — inspect, compare, replay, and export saved traces
 
 ## Quick Start
 
@@ -32,6 +33,7 @@ moon update
 import {
   "guo-dong-123/moon-trace/src/trace" @trace,
   "guo-dong-123/moon-trace/src/storage" @storage,
+  "guo-dong-123/moon-trace/src/replay" @replay,
 }
 ```
 
@@ -86,6 +88,9 @@ moontrace compare trace_1 trace_8
 # Replay recorded outputs without calling external tools
 moontrace replay trace_1
 
+# Record and rerun an Agent using captured tool responses
+moon run examples/replay_agent --target native
+
 # Check a new execution against a known-good baseline
 moontrace regress trace_1 trace_8
 
@@ -114,8 +119,9 @@ src/
 │   └── viewer.mbt  # ANSI-colored tree rendering, list/detail views
 ├── exporter/       # Export tools
 │   └── html.mbt    # Self-contained HTML export with timeline
+├── replay/         # Recorded tool outputs and regression checks
 └── cli/            # Command-line interface
-    └── main.mbt    # moontrace list/show/export/export-all/delete
+    └── main.mbt    # trace browsing, replay, regression, and export
 
 examples/
 ├── demo_agent/       # Minimal instrumentation demo
@@ -123,6 +129,7 @@ examples/
 ├── tui_test/         # TUI viewer test
 ├── research_agent/   # Offline multi-step research agent
 ├── failure_diagnosis/ # Failed tool plus recovery path demo
+├── replay_agent/    # Offline Agent replay with repeated tool calls
 └── bailian_agent/    # Real Qwen tool-calling agent with async traces
 ```
 
@@ -152,6 +159,19 @@ examples/
 | `store.list()` | List all trace summaries |
 | `store.delete(id)` | Delete a trace |
 | `query_summaries(summaries, filter)` | Filter traces by name/status/time |
+
+### Replay
+
+Wrap a tool call with `@trace.span` as usual, then supply its recorded output during a later run:
+
+```moonbit
+let session = @replay.ReplaySession::from_trace(saved_trace)
+let result = @trace.span("tool.lookup", Some(query), () => {
+  session.run("tool.lookup", Some(query))
+})
+```
+
+`run` consumes one matching call at a time. It checks the recorded input, returns the captured output, or raises the captured error. It never invokes the tool itself. See `examples/replay_agent` for a complete offline Agent run.
 
 ### Async Context
 

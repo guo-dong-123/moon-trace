@@ -176,7 +176,7 @@ fn cmd_replay(trace_id : String) -> Unit {
       for span in trace.spans.values() {
         print_replay_result(span.name, session.replay(span.name))
       }
-      println("Remaining unconsumed span names: " + "\{session.remaining()}")
+      println("Remaining recorded calls: " + "\{session.remaining()}")
     }
   }
 }

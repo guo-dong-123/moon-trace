@@ -1,0 +1,8 @@
+import {
+  "guo-dong-123/moon-trace/src/replay" @replay,
+  "guo-dong-123/moon-trace/src/storage" @storage,
+  "guo-dong-123/moon-trace/src/trace" @trace,
+  "moonbitlang/core/env" @env,
+}
+
+pkgtype(kind: "executable")

@@ -10,7 +10,7 @@ moon build
 moon test
 ```
 
-预期结果：`17` 个测试通过，失败数为 `0`。
+预期结果：测试全部通过，失败数为 `0`。
 
 ## 2. 生成示例 Trace
 
@@ -89,3 +89,5 @@ moon run examples/bailian_agent --target native
 | `moon run src/cli delete <id>` | 删除指定 Trace |
 
 `regress` 将同名 Span 按状态和出现次数匹配。检查通过时退出码为 0；发现差异时为 1；Trace 不存在或参数缺失时为 2。适合在脚本或 CI 中作为门禁。
+
+运行 `MOONTRACE_DIR=/tmp/moontrace-replay moon run examples/replay_agent --target native` 可录制一次工具调用，然后离线重跑同一 Agent。示例会核对重复工具调用顺序、失败后的降级结果以及回放期间真实工具调用次数不变。

@@ -1,5 +1,6 @@
 import {
   "guo-dong-123/moon-trace/src/trace" @trace,
+  "moonbitlang/core/string" @string,
 }
 
 pkgtype(kind: "library")

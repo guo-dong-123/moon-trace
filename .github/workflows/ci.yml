@@ -27,6 +27,11 @@ jobs:
       - name: Run tests
         run: moon test --target native
 
+      - name: Replay an Agent offline
+        run: |
+          mkdir -p "$RUNNER_TEMP/moontrace-replay"
+          MOONTRACE_DIR="$RUNNER_TEMP/moontrace-replay" moon run examples/replay_agent --target native
+
       - name: Check regression CLI
         run: |
           mkdir -p "$RUNNER_TEMP/moontrace-regress"
