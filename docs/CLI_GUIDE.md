@@ -87,3 +87,5 @@ moon run examples/bailian_agent --target native
 | `moon run src/cli export <id> <file>` | 导出单个 HTML |
 | `moon run src/cli export-all <dir>` | 批量导出 HTML 和索引 |
 | `moon run src/cli delete <id>` | 删除指定 Trace |
+
+`regress` 将同名 Span 按状态和出现次数匹配。检查通过时退出码为 0；发现差异时为 1；Trace 不存在或参数缺失时为 2。适合在脚本或 CI 中作为门禁。

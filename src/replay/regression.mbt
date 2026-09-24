@@ -27,33 +27,44 @@ fn span_status(span : @trace.Span) -> String {
   }
 }
 
-fn find_span(trace : @trace.Trace, name : String) -> Option[@trace.Span] {
-  for span in trace.spans.values() {
-    if span.name == name {
-      return Some(span)
-    }
-  }
-  None
-}
-
 pub fn compare_traces(baseline : @trace.Trace, candidate : @trace.Trace) -> RegressionReport {
   let issues : Array[RegressionIssue] = []
-  let baseline_names : Map[String, Bool] = Map([])
+  let matched : Map[String, Bool] = Map([])
+  let unmatched : Array[@trace.Span] = []
+
+  // Match exact name/status pairs first so repeated tool calls retain their counts.
   for span in baseline.spans.values() {
-    baseline_names[span.name] = true
-    match find_span(candidate, span.name) {
-      None => issues.push(RegressionIssue::MissingSpan(span.name))
-      Some(other) => {
-        let before = span_status(span)
-        let after = span_status(other)
-        if before != after {
-          issues.push(RegressionIssue::StatusChanged(span.name, before, after))
-        }
+    let mut found = false
+    for other in candidate.spans.values() {
+      if !found && !matched.contains(other.id) && span.name == other.name &&
+        span_status(span) == span_status(other) {
+        matched[other.id] = true
+        found = true
       }
     }
+    if !found {
+      unmatched.push(span)
+    }
   }
+
+  for span in unmatched {
+    let mut found = false
+    for other in candidate.spans.values() {
+      if !found && !matched.contains(other.id) && span.name == other.name {
+        issues.push(RegressionIssue::StatusChanged(
+          span.name, span_status(span), span_status(other),
+        ))
+        matched[other.id] = true
+        found = true
+      }
+    }
+    if !found {
+      issues.push(RegressionIssue::MissingSpan(span.name))
+    }
+  }
+
   for span in candidate.spans.values() {
-    if !baseline_names.contains(span.name) {
+    if !matched.contains(span.id) {
       issues.push(RegressionIssue::AddedSpan(span.name))
     }
   }

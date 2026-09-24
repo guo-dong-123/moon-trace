@@ -27,5 +27,18 @@ jobs:
       - name: Run tests
         run: moon test --target native
 
+      - name: Check regression CLI
+        run: |
+          mkdir -p "$RUNNER_TEMP/moontrace-regress"
+          export MOONTRACE_DIR="$RUNNER_TEMP/moontrace-regress"
+          moon run examples/research_agent --target native
+          moon run src/cli regress trace_1 trace_15
+          if moon run src/cli regress trace_1 trace_8; then
+            echo "Expected regression check to fail" >&2
+            exit 1
+          else
+            test "$?" -eq 1
+          fi
+
       - name: Build native targets
         run: moon build --target native

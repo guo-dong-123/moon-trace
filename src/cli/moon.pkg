@@ -6,6 +6,7 @@ import {
   "guo-dong-123/moon-trace/src/exporter" @exporter,
   "moonbitlang/core/env" @env,
   "moonbitlang/x/fs" @fs,
+  "moonbitlang/x/sys" @sys,
 }
 
 pkgtype(kind: "executable")

@@ -203,10 +203,17 @@ fn cmd_regress(baseline_id : String, candidate_id : String) -> Unit {
         for issue in report.issues {
           print_regression_issue(issue)
         }
+        @sys.exit(1)
       }
     }
-    (None, _) => println("Error: trace not found: " + baseline_id)
-    (_, None) => println("Error: trace not found: " + candidate_id)
+    (None, _) => {
+      println("Error: trace not found: " + baseline_id)
+      @sys.exit(2)
+    }
+    (_, None) => {
+      println("Error: trace not found: " + candidate_id)
+      @sys.exit(2)
+    }
   }
 }
 
@@ -315,6 +322,7 @@ fn main {
     "regress" => {
       if args.length() < 4 {
         println("Error: 'regress' requires a baseline and candidate trace ID")
+        @sys.exit(2)
       } else {
         cmd_regress(args[2], args[3])
       }
