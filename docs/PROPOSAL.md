@@ -4,7 +4,6 @@
 
 - 项目名称：MoonTrace：MoonBit Agent 执行轨迹观测与调试工具
 - 参赛者：陈彦玮
-- 联系方式：17512568017 / 2778296663@qq.com
 - GitHub 仓库链接：https://github.com/guo-dong-123/moon-trace
 - 项目方向：MoonBit 开发工具 / Agent 可观测性基础设施
 - 是否为移植项目：否
@@ -27,7 +26,7 @@ MoonTrace 是一个使用 MoonBit 原生实现的 Agent 执行轨迹观测与调
 - 提供 ANSI 终端树形查看器，以及自包含 HTML 调用树和时间线导出；
 - 提供研究型 Agent 示例，覆盖 Web 搜索、计算器、知识库超时和降级回答；
 - 提供真实 Bailian Qwen 工具调用示例，展示模型选择工具、MoonBit 执行工具和模型综合回答的两轮流程；
-- 提供 17 个 MoonBit 单元测试，覆盖同步与异步追踪、错误恢复、存储和 HTML 导出，并提供 CLI 指南及可复现导出证据。
+- 提供 33 个 MoonBit 单元测试，覆盖同步与异步追踪、错误恢复、存储、HTML 导出和回放，并提供 CLI 指南及可复现导出证据。
 
 ## 移植或参考说明
 

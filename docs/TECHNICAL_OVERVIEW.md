@@ -42,21 +42,21 @@ let result = @trace.span("tool.web_search", Some(query), () => {
 
 项目提供内存存储和 JSON 文件存储。JSON 存储使用单条 trace 一个文件和 `index.json` 索引，默认目录为 `~/.moontrace/traces/`，也可以通过 `MOONTRACE_DIR` 指定目录。
 
-CLI 提供以下命令：
+从仓库根目录通过 `moon run src/cli` 启动 CLI，例如：
 
 ```text
-moontrace list
-moontrace show <trace_id>
-moontrace export <trace_id> [output.html]
-moontrace export-all [directory]
-moontrace delete <trace_id>
+moon run src/cli list
+moon run src/cli show <trace_id>
+moon run src/cli export <trace_id> [output.html]
+moon run src/cli export-all [directory]
+moon run src/cli delete <trace_id>
 ```
 
 终端查看器展示 trace 摘要和带颜色的嵌套树。HTML 导出器生成自包含页面，包含统计卡片、可折叠 span 树和时间线。
 
 ## 四、技术实现
 
-项目由五个模块组成：
+项目由六个模块组成：
 
 | 模块 | 作用 |
 |---|---|
@@ -64,7 +64,8 @@ moontrace delete <trace_id>
 | `storage` | MemoryStore、JsonFileStore、索引和过滤查询 |
 | `tui` | 终端列表视图与详情树 |
 | `exporter` | 自包含 HTML 和时间线导出 |
-| `cli` | list、show、export、export-all、delete、help 命令 |
+| `cli` | list、show、export、export-all、delete、replay、regress 等命令 |
+| `replay` | 已记录工具输出与失败的离线回放、可选最终结果回归检查 |
 
 核心状态由 tracer 管理。嵌套 span 创建时读取当前 span 作为父节点，完成或失败时更新对应记录。上下文 API `capture_context` / `with_context` 用于显式传递 trace 上下文。
 
@@ -81,6 +82,8 @@ moontrace delete <trace_id>
 - CLI 可以列出和查看历史 trace；
 - CLI 可以按错误状态和根 Span 名称筛选历史 trace；
 - CLI 可以按 Span 名称对比两次执行的耗时、错误和新增/删除步骤；
+- ReplaySession 可以按记录的工具调用顺序和输入在离线 Agent 中重放输出或错误；
+- `regress` 默认检查 Span 名称、出现次数和状态；可选 `--check-output` 比较根 Agent 的最终输出；
 - trace 可以导出为自包含 HTML；
 - 示例包含 Web 搜索、计算器、知识库超时和降级回答；另有独立的失败诊断 Demo 展示错误 Span 与恢复事件；真实 Agent 示例包含模型工具选择、MoonBit 本地工具执行和模型综合回答。
 
@@ -88,17 +91,17 @@ MVP 验证结果：
 
 ```text
 moon build       通过
-moon test        17 个测试通过，0 个失败
+moon test        33 个测试通过，0 个失败（native，本地实测）
 demo_agent       生成嵌套工具调用 trace
 research_agent   生成 3 条 trace，包含成功和错误路径
 CLI              list / show / export 验证通过
-bailian_agent    真实两轮工具调用成功，生成 4 个成功 Span
+replay_agent     离线重跑结果一致，重跑期间真实工具调用次数不变
 failure_diagnosis 生成 1 个错误 Span 和 1 个 fallback 事件
 ```
 
 研究型 Agent 示例不调用真实服务，使用可控的模拟工具稳定复现成功、失败和降级流程，评审无需 API key 即可运行。真实 Bailian 示例是可选演示，不影响核心 MVP 的离线复现。
 
-项目还提供 GitHub Actions，自动执行 MoonBit 类型检查、17 个单元测试和 native 构建。
+项目还提供 GitHub Actions，自动执行 MoonBit native 类型检查、测试、离线 Agent 回放、回归 CLI 和 native 构建。上述结果已在本地验证；新版本推送后仍需以对应提交的 CI 结果为准。本地工具链检查研究示例时仍有弃用警告。
 
 ## 六、项目特色
 
@@ -119,23 +122,25 @@ moon update
 moon build
 moon test
 moon run examples/demo_agent
-MOONTRACE_DIR=/tmp/moontrace-mvp moon run examples/research_agent
-MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli list
-MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli show trace_1
-MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli export trace_1 /tmp/moontrace-mvp/trace_1.html
+export MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-mvp.XXXXXX)"
+moon run examples/research_agent
+moon run src/cli list
+moon run src/cli show trace_8
+moon run src/cli export trace_8 "$MOONTRACE_DIR/trace_8.html"
+MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-replay.XXXXXX)" moon run examples/replay_agent
 ```
 
 基础 Demo 展示 `agent_think`、`tool.web_search`、`tool.calculator` 和 `tool.knowledge_base` 的嵌套关系。研究型 Agent 展示正常查询、知识库不可用和回答降级三个执行结果。
 
 ## 八、后续方向
 
-在当前本地调试闭环的基础上，后续可以增加性能分析、trace 对比、采样策略、实时查看和 OpenTelemetry 兼容导出。这些方向属于 MVP 之后的扩展，不影响当前项目完成 Agent 追踪、存储、查看和导出的核心目标。
+在当前本地调试闭环的基础上，后续可探索更细粒度的结果断言、性能分析、采样策略、实时查看和 OpenTelemetry 兼容导出。这些方向属于 MVP 之后的扩展。
 
 ## 九、项目信息
 
 - **项目名称**：MoonTrace
 - **GitHub 仓库**：https://github.com/guo-dong-123/moon-trace
 - **技术栈**：MoonBit
-- **规模**：17 个 `.mbt` 文件，约 2400 行代码
-- **测试**：17 个正式单元测试，全部通过
+- **规模**：22 个 `.mbt` 文件，共约 3400 行（含测试与示例）
+- **测试**：33 个 MoonBit native 测试，全部通过
 - **许可证**：MIT

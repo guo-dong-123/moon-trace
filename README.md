@@ -4,11 +4,13 @@
 
 MoonTrace is a **MoonBit-native** observability tool for AI agent workflows, inspired by LangSmith. It provides lightweight tracing, storage, terminal visualization, and HTML export. The core works locally; an optional example connects a real Alibaba Cloud Model Studio Agent.
 
+For a short, API-key-free review flow, see [Reviewer Demo](docs/REVIEWER_DEMO.md).
+
 ## Why MoonTrace?
 
 When building AI agents, understanding *what happened* during an execution is as important as the final output. MoonTrace gives you:
 
-- **Zero-config instrumentation** — wrap any function with `@trace.span` and get automatic timing, input/output capture, and error tracking
+- **Explicit instrumentation** — wrap a function with `@trace.span` to capture timing, input/output, and errors without changing its signature
 - **Nested span trees** — visualize agent reasoning chains, tool calls, and sub-agent invocations
 - **Persistent storage** — traces saved as JSON files, queryable by name, status, and time range
 - **Terminal UI** — inspect traces directly in your terminal with ANSI-colored tree views
@@ -18,15 +20,20 @@ When building AI agents, understanding *what happened* during an execution is as
 
 ## Quick Start
 
-### 1. Add MoonTrace to your project
+### 1. Build this checkout
 
-Clone this repository and update the MoonBit registry before building:
+Clone this repository, update dependencies, and verify the native build:
 
 ```bash
 git clone https://github.com/guo-dong-123/moon-trace.git
 cd moon-trace
 moon update
+moon check --target native
+moon build --target native
+moon test --target native
 ```
+
+The library is currently used from this checkout; a Mooncakes release and a documented third-party installation flow are not available yet. The package imports below are the ones used by the examples in this repository.
 
 ```moonbit
 // moon.pkg
@@ -38,6 +45,8 @@ import {
 ```
 
 ### 2. Instrument your agent
+
+This snippet illustrates the API; `search_web` represents your own tool implementation.
 
 ```moonbit
 fn run_agent(query : String) -> String {
@@ -71,38 +80,44 @@ fn run_agent(query : String) -> String {
 }
 ```
 
-### 3. View traces
+### 3. Run and inspect an offline agent
+
+Use a fresh directory for each demonstration. Example trace IDs restart at `trace_1`, so reusing a directory across different examples can overwrite earlier traces.
 
 ```bash
-# List all traces
-moontrace list
+export MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-demo.XXXXXX)"
+moon run examples/research_agent
+
+# List and inspect saved traces
+moon run src/cli list
+moon run src/cli show trace_8
 
 # List only failed traces or filter by root span name
-moontrace errors
-moontrace list --errors
-moontrace list --name research_agent
+moon run src/cli errors
+moon run src/cli list --errors
+moon run src/cli list --name research_agent
 
 # Compare two saved traces by span name
-moontrace compare trace_1 trace_8
+moon run src/cli compare trace_1 trace_8
 
-# Replay recorded outputs without calling external tools
-moontrace replay trace_1
+# Display recorded outputs without calling external tools
+moon run src/cli replay trace_8
 
-# Record and rerun an Agent using captured tool responses
-moon run examples/replay_agent --target native
+# Record and rerun an Agent using captured tool responses in a separate directory
+MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-replay.XXXXXX)" moon run examples/replay_agent
 
 # Check a new execution against a known-good baseline
-moontrace regress trace_1 trace_8
-
-# Show detailed trace in terminal
-moontrace show <trace_id>
+moon run src/cli regress trace_1 trace_15
+moon run src/cli regress trace_1 trace_15 --check-output
 
 # Export to interactive HTML
-moontrace export <trace_id> trace.html
+moon run src/cli export trace_8 "$MOONTRACE_DIR/trace_8.html"
 
 # Export all traces + index page
-moontrace export-all ./exports/
+moon run src/cli export-all "$MOONTRACE_DIR/exports/"
 ```
+
+`replay` in the CLI displays recorded span values. `examples/replay_agent` exercises `ReplaySession.run` inside a second Agent execution and checks that no live tool calls occur during that execution. By default, regression checks compare span names, counts, and statuses; `--check-output` also compares the matching root Agent's final output. The check reports a change without printing the output text.
 
 ## Architecture
 
@@ -222,7 +237,7 @@ moon run examples/research_agent
 # Run the real Bailian tool-calling Agent
 BAILIAN_API_KEY='your-key' TEXT_MODEL='qwen3.7-plus' \
   MOONTRACE_DIR=/tmp/moontrace-bailian \
-  moon run examples/bailian_agent --target native
+  moon run --target native examples/bailian_agent
 
 # Run CLI from this checkout
 moon run src/cli list
@@ -255,34 +270,36 @@ Configuration is read only from environment variables:
 | `BAILIAN_BASE_URL` | No | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
 | `MOONTRACE_DIR` | No | `~/.moontrace/traces/` |
 
-The API key is sent to `curl` through stdin configuration and is never placed in `curl` arguments or stored in source, traces, or HTML exports. Copy `.env.example` for the variable names, but do not commit a populated `.env` file.
+The API key is sent to `curl` through stdin configuration and is never placed in `curl` arguments or stored in source, traces, or HTML exports. This example also records placeholders instead of the user query, tool arguments, and final answer, and does not persist provider error bodies. Generic `@trace.span` calls still record the strings supplied by the caller and the returned value; avoid passing secrets to spans or exporting traces containing private data. Copy `.env.example` for the variable names, but do not commit a populated `.env` file.
 
 ## MVP Verification
 
-The following commands verify the complete local workflow without an API key or external service:
+The following commands verify the local workflow without an API key or external service. Use a fresh trace directory for each run:
 
 ```bash
 # Build and run all tests
-moon build
-moon test
+moon build --target native
+moon test --target native
 
 # Run the Agent demo: nested tools, events, and handled tool failure
 moon run examples/demo_agent
 
 # Run the full Research Agent and persist traces in an isolated directory
-MOONTRACE_DIR=/tmp/moontrace-mvp moon run examples/research_agent
-MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli list
-MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli show trace_1
-MOONTRACE_DIR=/tmp/moontrace-mvp moon run src/cli export trace_1 /tmp/moontrace-mvp/trace_1.html
+export MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-mvp.XXXXXX)"
+moon run examples/research_agent
+moon run src/cli list
+moon run src/cli show trace_8
+moon run src/cli export trace_8 "$MOONTRACE_DIR/trace_8.html"
 
 # Run the failure diagnosis demo
-MOONTRACE_DIR=/tmp/moontrace-failure moon run examples/failure_diagnosis
-MOONTRACE_DIR=/tmp/moontrace-failure moon run src/cli errors
+FAILURE_DIR="$(mktemp -d /tmp/moontrace-failure.XXXXXX)"
+MOONTRACE_DIR="$FAILURE_DIR" moon run examples/failure_diagnosis
+MOONTRACE_DIR="$FAILURE_DIR" moon run src/cli errors
 ```
 
 Expected acceptance evidence:
 
-- `moon test` reports 17 passed tests.
+- `moon test --target native` reports 33 passed tests on the verified checkout.
 - The Agent demo prints a nested trace containing `agent_think`, `tool.web_search`, `tool.calculator`, and `tool.knowledge_base`.
 - The Research Agent saves three traces, including one error trace caused by a simulated knowledge-base timeout.
 - The CLI lists and displays saved traces, and exports a self-contained HTML file.
@@ -290,7 +307,7 @@ Expected acceptance evidence:
 
 ## Requirements
 
-- MoonBit toolchain (`moon` >= 0.1.20260904, `moonc` >= 0.10.12)
+- MoonBit toolchain (locally verified with `moon` 0.1.20260827 and `moonc` 0.10.11; no minimum version is established)
 - `moonbitlang/x@0.5.4` (filesystem access)
 - `moonbitlang/async@0.20.1` and system `curl` (real Bailian Agent example only)
 

@@ -3,9 +3,10 @@
 本目录用于保存不含密钥的演示产物。执行下面的命令可以重新生成同类文件：
 
 ```bash
-rm -rf /tmp/moontrace-mvp-evidence
-MOONTRACE_DIR=/tmp/moontrace-mvp-evidence moon run examples/research_agent
-MOONTRACE_DIR=/tmp/moontrace-mvp-evidence moon run src/cli export trace_1 docs/evidence/trace_1.html
+export MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-mvp-evidence.XXXXXX)"
+moon run examples/research_agent
+moon run src/cli export trace_1 "$MOONTRACE_DIR/trace_1.html"
+moon run src/cli export trace_8 "$MOONTRACE_DIR/trace_8.html"
 ```
 
 证据内容：
