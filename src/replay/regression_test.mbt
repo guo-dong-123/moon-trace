@@ -95,3 +95,25 @@ test "regression_report_matches_repeated_calls_by_status" {
   )
   assert_true(report.passed())
 }
+
+fn regression_answer_trace(answer : String) -> @trace.Trace raise Failure {
+  ignore(@trace.start_trace())
+  ignore(@trace.span("agent.run", None, () => answer))
+  match @trace.end_trace() {
+    None => raise Failure("no trace")
+    Some(trace) => trace
+  }
+}
+
+test "root_output_check_is_opt_in" {
+  let baseline = regression_answer_trace("answer A")
+  let changed = regression_answer_trace("answer B")
+  assert_true(compare_traces(baseline, changed).passed())
+  let report = compare_traces_with_options(baseline, changed, true)
+  assert_true(report.issue_count() == 1)
+  match report.issues[0] {
+    RegressionIssue::RootOutputChanged(name) => inspect(name, content="agent.run")
+    _ => assert_true(false)
+  }
+  assert_true(compare_traces_with_options(baseline, baseline, true).passed())
+}

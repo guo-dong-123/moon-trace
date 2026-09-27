@@ -12,6 +12,18 @@ struct ChatTurn {
   total_tokens : Int
 }
 
+struct ReviewAnswer {
+  text : String
+}
+
+impl Show for ReviewAnswer with fn to_string(_self : ReviewAnswer) -> String {
+  "[redacted agent answer]"
+}
+
+fn redacted_query_input(_query : String) -> String {
+  "[redacted user query]"
+}
+
 impl Show for ChatTurn with fn to_string(self : ChatTurn) -> String {
   "ChatTurn(text_length=\{self.text.length()}, tool_calls=\{self.tool_calls.length()}, total_tokens=\{self.total_tokens})"
 }
@@ -227,17 +239,16 @@ async fn post_chat(
           stdin=child_stdin,
         )
       }
-      let (status, stdout, stderr) = request.wait()
+      let (status, stdout, _stderr) = request.wait()
       let response_text = stdout.text()
       if status != 0 {
-        let detail = if response_text != "" { response_text } else { stderr.text() }
-        raise Failure("Bailian request failed: " + detail)
+        raise Failure("Bailian request failed (curl exit status \{status})")
       }
       response_text
     }
   } catch {
     Failure(message) => raise Failure(message)
-    err => raise Failure("Failed to run curl: " + err.to_string())
+    _ => raise Failure("Failed to run curl")
   }
   parse_chat_turn(payload)
 }
@@ -258,7 +269,7 @@ async fn run_agent_body(
   endpoint : String,
   model : String,
   user_query : String,
-) -> String raise Failure {
+) -> ReviewAnswer raise Failure {
   @trace.set_metadata("provider", "alibaba-bailian")
   @trace.set_metadata("model", model)
   let first = @trace.span_async(
@@ -275,11 +286,11 @@ async fn run_agent_body(
   }
   for call in first.tool_calls {
     guard call.name == "inspect_moontrace_mvp" else {
-      raise Failure("model requested unsupported tool: " + call.name)
+      raise Failure("model requested an unsupported tool")
     }
     ignore(@trace.span(
       "tool.inspect_moontrace_mvp",
-      Some(call.arguments),
+      Some("[redacted tool arguments]"),
       () => project_evidence(),
     ))
   }
@@ -296,7 +307,7 @@ async fn run_agent_body(
     "review_completed",
     Some("total_tokens=\{final_turn.total_tokens}"),
   )
-  final_turn.text
+  { text: final_turn.text }
 }
 
 async fn run_review_agent(
@@ -309,7 +320,7 @@ async fn run_review_agent(
   let result = try {
     @trace.span_async(
       "agent.moontrace_mvp_review",
-      Some(user_query),
+      Some(redacted_query_input(user_query)),
       () => run_agent_body(api_key, endpoint, model, user_query),
     )
   } catch {
@@ -322,7 +333,7 @@ async fn run_review_agent(
     }
   }
   ignore(finish_trace())
-  result
+  result.text
 }
 
 async fn main {
@@ -361,4 +372,27 @@ test "parse_chat_turn_extracts_tool_call_and_usage" {
   assert_eq(turn.tool_calls.length(), 1)
   assert_eq(turn.tool_calls[0].name, "inspect_moontrace_mvp")
   assert_eq(turn.total_tokens, 42)
+}
+
+test "bailian trace output redacts private query and answer" {
+  let private_query = "private question sk-test-query"
+  let private_answer = "private response sk-test-answer"
+  ignore(@trace.start_trace())
+  ignore(@trace.span(
+    "agent.moontrace_mvp_review",
+    Some(redacted_query_input(private_query)),
+    () => ReviewAnswer::{ text: private_answer },
+  ))
+  let trace = match @trace.end_trace() {
+    None => abort("missing trace")
+    Some(value) => value
+  }
+  let json = @json.to_json(trace).stringify()
+  let html = @exporter.export_trace_html(trace)
+  assert_true(!json.contains(private_query))
+  assert_true(!json.contains(private_answer))
+  assert_true(!html.contains(private_query))
+  assert_true(!html.contains(private_answer))
+  assert_true(json.contains("[redacted user query]"))
+  assert_true(html.contains("[redacted agent answer]"))
 }

@@ -3,7 +3,7 @@
 fn print_help() -> Unit {
   println("MoonTrace - Agent execution trace observability tool")
   println("")
-  println("Usage: moontrace <command> [options]")
+  println("Usage: moon run src/cli <command> [options]")
   println("")
   println("Commands:")
   println("  list [options]          List saved traces")
@@ -11,7 +11,7 @@ fn print_help() -> Unit {
   println("    --name <text>         Filter by root span name")
   println("  errors                  List only traces containing errors")
   println("  compare <a> <b>         Compare two traces by span name")
-  println("  regress <base> <new>    Check a candidate trace against a baseline")
+  println("  regress <base> <new> [--check-output]  Check spans and optionally the final answer")
   println("  replay <trace_id>       Replay recorded span outputs")
   println("  show <trace_id>         Show detailed trace view in terminal")
   println("  export <trace_id> [out] Export trace to HTML file (default: <id>.html)")
@@ -186,18 +186,23 @@ fn print_regression_issue(issue : @replay.RegressionIssue) -> Unit {
     @replay.MissingSpan(name) => println("- missing span: " + name)
     @replay.AddedSpan(name) => println("- added span: " + name)
     @replay.StatusChanged(name, before, after) => println("- status changed: " + name + " (" + before + " -> " + after + ")")
+    @replay.RootOutputChanged(name) => println("- root output changed: " + name)
   }
 }
 
-fn cmd_regress(baseline_id : String, candidate_id : String) -> Unit {
+fn cmd_regress(baseline_id : String, candidate_id : String, check_output : Bool) -> Unit {
   let store = get_store()
   match (store.load(baseline_id), store.load(candidate_id)) {
     (Some(baseline), Some(candidate)) => {
-      let report = @replay.compare_traces(baseline, candidate)
+      let report = @replay.compare_traces_with_options(baseline, candidate, check_output)
       println("=== MoonTrace Regression Check ===")
       println("Baseline: " + baseline_id + "  Candidate: " + candidate_id)
       if report.passed() {
-        println("PASS: no span or status regressions detected")
+        println(if check_output {
+          "PASS: no span, status, or root output regressions detected"
+        } else {
+          "PASS: no span or status regressions detected"
+        })
       } else {
         println("FAIL: \{report.issue_count()} regression issue(s)")
         for issue in report.issues {
@@ -324,7 +329,14 @@ fn main {
         println("Error: 'regress' requires a baseline and candidate trace ID")
         @sys.exit(2)
       } else {
-        cmd_regress(args[2], args[3])
+        if args.length() == 4 {
+          cmd_regress(args[2], args[3], false)
+        } else if args.length() == 5 && args[4] == "--check-output" {
+          cmd_regress(args[2], args[3], true)
+        } else {
+          println("Error: expected 'regress <base> <new> [--check-output]'")
+          @sys.exit(2)
+        }
       }
     }
     "export" => {
@@ -349,7 +361,7 @@ fn main {
     "help" | "--help" | "-h" => print_help()
     _ => {
       println("Unknown command: " + cmd)
-      println("Use 'moontrace help' for usage")
+      println("Use 'moon run src/cli help' for usage")
     }
   }
 }

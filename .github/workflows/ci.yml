@@ -38,6 +38,7 @@ jobs:
           export MOONTRACE_DIR="$RUNNER_TEMP/moontrace-regress"
           moon run examples/research_agent --target native
           moon run src/cli regress trace_1 trace_15
+          moon run src/cli regress trace_1 trace_15 --check-output
           if moon run src/cli regress trace_1 trace_8; then
             echo "Expected regression check to fail" >&2
             exit 1

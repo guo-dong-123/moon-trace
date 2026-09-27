@@ -138,7 +138,7 @@ pub fn render_trace_list(summaries : Array[@storage.TraceSummary]) -> String {
     lines.push("  " + idx + "  " + s.trace_id + "  " + name + "  \{s.span_count}      " + status)
   }
   lines.push("")
-  lines.push(color_gray("Use 'moontrace show <id>' to view trace details"))
+  lines.push(color_gray("Use 'moon run src/cli show <id>' to view trace details"))
   lines.join("\n")
 }
 
@@ -176,5 +176,5 @@ pub fn run_tui(store : @storage.JsonFileStore) -> String {
     lines.push("  help              Show this help")
     return lines.join("\n")
   }
-  color_red("Unknown command: " + cmd + ". Use 'moontrace help' for usage.")
+  color_red("Unknown command: " + cmd + ". Use 'moon run src/cli help' for usage.")
 }

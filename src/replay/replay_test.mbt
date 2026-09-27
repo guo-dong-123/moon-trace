@@ -90,3 +90,20 @@ test "replay_run_preserves_recorded_failure" {
   }
   assert_true(session.consumed_count("tool.unavailable") == 1)
 }
+
+test "replay_run_rejects_missing_and_exhausted_calls" {
+  let session = ReplaySession::from_trace(make_replay_trace())
+  try session.run("tool.unknown", None) catch {
+    Failure(message) => inspect(message, content="no recorded call for tool.unknown")
+  } noraise {
+    _ => assert_true(false)
+  }
+  assert_true(session.remaining() == 3)
+  inspect(session.run("tool.search", Some("query")), content="cached result")
+  try session.run("tool.search", Some("query")) catch {
+    Failure(message) => inspect(message, content="recorded calls exhausted for tool.search")
+  } noraise {
+    _ => assert_true(false)
+  }
+  assert_true(session.consumed_count("tool.search") == 1)
+}

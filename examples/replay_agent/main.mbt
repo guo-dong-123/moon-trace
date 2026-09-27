@@ -70,8 +70,8 @@ fn main raise Failure {
     session.consumed_count("tool.lookup") != 3 {
     raise Failure("replay changed the answer or called the live tool")
   }
-  if !@replay.compare_traces(baseline, candidate).passed() {
-    raise Failure("replayed span statuses differ from baseline")
+  if !@replay.compare_traces_with_options(baseline, candidate, true).passed() {
+    raise Failure("replayed spans or final answer differ from baseline")
   }
   println("Original: " + original)
   println("Replayed: " + replayed)
@@ -79,4 +79,18 @@ fn main raise Failure {
   println("Baseline trace: " + baseline.id)
   println("Replay trace: " + candidate.id)
   println("PASS: recorded outputs and failure reproduced without live tool calls")
+}
+
+test "offline agent preserves fallback and makes no live tool calls" {
+  let calls = [0]
+  let (original, baseline) = run_agent(None, calls)
+  let live_calls = calls[0]
+  let session = @replay.ReplaySession::from_trace(baseline)
+  let (replayed, candidate) = run_agent(Some(session), calls)
+  assert_true(live_calls == 3)
+  assert_true(calls[0] == live_calls)
+  assert_eq(original, "found:alpha | cached fallback | found:gamma")
+  assert_eq(replayed, original)
+  assert_true(session.consumed_count("tool.lookup") == 3)
+  assert_true(@replay.compare_traces_with_options(baseline, candidate, true).passed())
 }

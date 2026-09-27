@@ -139,6 +139,6 @@ fn main raise Failure {
     None => println("Traces saved to ~/.moontrace/traces/")
     Some(dir) => println("Traces saved to " + dir)
   }
-  println("View with: moontrace list")
-  println("Export with: moontrace export <trace_id>")
+  println("View with: moon run src/cli list")
+  println("Export with: moon run src/cli export <trace_id> <output.html>")
 }
