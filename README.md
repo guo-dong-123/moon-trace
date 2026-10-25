@@ -20,6 +20,16 @@ When building AI agents, understanding *what happened* during an execution is as
 
 ## Quick Start
 
+### Install from Mooncakes
+
+Add MoonTrace to an existing MoonBit project:
+
+```bash
+moon add guo-dong-123/moon-trace@0.1.0
+```
+
+The published module is [guo-dong-123/moon-trace](https://mooncakes.io/docs/guo-dong-123/moon-trace). Import the packages shown below in your own `moon.pkg`, then run your application with `--target native`. The complete workflow is verified on the native backend.
+
 ### 1. Build this checkout
 
 Clone this repository, update dependencies, and verify the native build:
@@ -33,7 +43,7 @@ moon build --target native
 moon test --target native
 ```
 
-The library is currently used from this checkout; a Mooncakes release and a documented third-party installation flow are not available yet. The package imports below are the ones used by the examples in this repository.
+The same package imports work in this checkout and in projects that install the Mooncakes module:
 
 ```moonbit
 // moon.pkg
