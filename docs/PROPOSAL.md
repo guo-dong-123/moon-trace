@@ -5,6 +5,7 @@
 - 项目名称：MoonTrace：MoonBit Agent 执行轨迹观测与调试工具
 - 参赛者：陈彦玮
 - GitHub 仓库链接：https://github.com/guo-dong-123/moon-trace
+- Mooncakes 发布链接：https://mooncakes.io/docs/guo-dong-123/moon-trace@0.1.0
 - 项目方向：MoonBit 开发工具 / Agent 可观测性基础设施
 - 是否为移植项目：否
 

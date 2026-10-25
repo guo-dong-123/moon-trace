@@ -5,6 +5,7 @@
 MoonTrace is a **MoonBit-native** observability tool for AI agent workflows, inspired by LangSmith. It provides lightweight tracing, storage, terminal visualization, and HTML export. The core works locally; an optional example connects a real Alibaba Cloud Model Studio Agent.
 
 For a short, API-key-free review flow, see [Reviewer Demo](docs/REVIEWER_DEMO.md).
+Mooncakes publication and independent installation evidence are recorded in [Release Verification](docs/MOONCAKES_RELEASE.md).
 
 ## Why MoonTrace?
 
