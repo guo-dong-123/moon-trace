@@ -57,9 +57,12 @@ HTML: traces/registry-smoke.html
 
 本记录证明已发布和可安装；赛事重新验收结果由赛事方确认。
 
-## 0.1.1 发布准备
+## 0.1.1 发布记录
 
 - 变更提交：`da27ff2 feat: enrich trace export debugging view`。
 - 导出 HTML 新增 Span metadata、事件列表、搜索和状态筛选。
 - 修复 Span 结束时 metadata/events 被旧局部对象覆盖的问题。
-- 发布前验证：`moon check --target native`、`moon test --target native`、`moon build --target native`。
+- 发布版本：`0.1.1`，Mooncakes 服务端返回 `200 OK`，构建状态为 `success`。
+- 公开包页面：https://mooncakes.io/docs/guo-dong-123/moon-trace@0.1.1
+- 包校验和：`7c2ee1c605aacf862b0489c785c3b78744f113c44a0b820234332faa7918534b`。
+- 发布前验证：`moon check --target native`、`moon test --target native`（33/33）、`moon build --target native`；上传包解包后再次 `moon check` 通过。
