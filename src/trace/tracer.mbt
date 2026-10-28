@@ -117,18 +117,29 @@ pub fn[T : Show] span(name : String, input : Option[String], body : () -> T rais
   let result = try {
     let v = body()
     let end = duration_end_ms(tracer, span_id, start)
-    span.finish(end, Some(v.to_string()))
+    // Metadata and events can be added while the body runs. Re-read the
+    // registered span before finishing so those updates are not overwritten
+    // by the stale local value created before the body started.
+    let completed_span = match tracer.current_trace {
+      Some(t) => t.get_span(span_id).unwrap_or(span)
+      None => span
+    }
+    completed_span.finish(end, Some(v.to_string()))
     match tracer.current_trace {
-      Some(t) => t.update_span(span)
+      Some(t) => t.update_span(completed_span)
       None => ()
     }
     v
   } catch {
     Failure(msg) => {
       let end = duration_end_ms(tracer, span_id, start)
-      span.finish_with_error(end, msg)
+      let failed_span = match tracer.current_trace {
+        Some(t) => t.get_span(span_id).unwrap_or(span)
+        None => span
+      }
+      failed_span.finish_with_error(end, msg)
       match tracer.current_trace {
-        Some(t) => t.update_span(span)
+        Some(t) => t.update_span(failed_span)
         None => ()
       }
       ignore(tracer.span_stack.pop())
@@ -178,18 +189,26 @@ pub async fn[T : Show] span_async(
   let result = try {
     let value = body()
     let end = duration_end_ms(tracer, span_id, start)
-    span.finish(end, Some(value.to_string()))
+    let completed_span = match tracer.current_trace {
+      Some(t) => t.get_span(span_id).unwrap_or(span)
+      None => span
+    }
+    completed_span.finish(end, Some(value.to_string()))
     match tracer.current_trace {
-      Some(t) => t.update_span(span)
+      Some(t) => t.update_span(completed_span)
       None => ()
     }
     value
   } catch {
     Failure(msg) => {
       let end = duration_end_ms(tracer, span_id, start)
-      span.finish_with_error(end, msg)
+      let failed_span = match tracer.current_trace {
+        Some(t) => t.get_span(span_id).unwrap_or(span)
+        None => span
+      }
+      failed_span.finish_with_error(end, msg)
       match tracer.current_trace {
-        Some(t) => t.update_span(span)
+        Some(t) => t.update_span(failed_span)
         None => ()
       }
       ignore(tracer.span_stack.pop())

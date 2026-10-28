@@ -51,6 +51,16 @@ fn css_styles() -> String {
   ".io-label{color:#666;font-weight:bold}" +
   ".span-io code{background:rgba(255,255,255,0.05);padding:1px 4px;border-radius:3px;font-size:11px}" +
   ".span-error{font-size:12px;color:#f87171;margin:4px 0;padding-left:8px}" +
+  ".span-metadata,.span-events{margin:6px 0 6px 8px;padding:6px 8px;border-left:2px solid rgba(0,212,255,.35);background:rgba(255,255,255,.025)}" +
+  ".detail-title{font-size:10px;color:#00d4ff;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}" +
+  ".detail-row{font-size:11px;color:#aaa;margin:3px 0;font-family:monospace;white-space:pre-wrap;overflow-wrap:anywhere}" +
+  ".detail-key{color:#ddd;font-weight:bold}" +
+  ".event-time{color:#888;margin-right:6px}" +
+  ".trace-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}" +
+  ".trace-controls input,.trace-controls select{background:#0f172a;color:#e0e0e0;border:1px solid #334155;border-radius:4px;padding:7px 9px;font:inherit}" +
+  ".trace-controls input{flex:1;min-width:220px}" +
+  ".filter-count{font-size:12px;color:#888}" +
+  ".span-node.filtered{display:none}" +
   ".timeline-row{display:flex;align-items:center;margin-bottom:4px;height:24px}" +
   ".timeline-label{width:180px;font-size:11px;color:#aaa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px;font-family:monospace}" +
   ".timeline-track{flex:1;height:16px;background:rgba(255,255,255,0.05);border-radius:3px;position:relative}" +
@@ -92,6 +102,33 @@ fn render_span_node(trace : @trace.Trace, span_id : String) -> String {
     Some(msg) => "<div class='span-error'>Error: " + escape_html(msg) + "</div>"
   }
 
+  let mut metadata_display = ""
+  let metadata_keys = span.metadata.keys()
+  if metadata_keys.length() > 0 {
+    // Keep the whole map together: MoonBit Map iteration can expose keys
+    // without a stable value lookup across compiler targets. The escaped
+    // snapshot is lossless for debugging and avoids silently dropping fields.
+    metadata_display = "<div class='span-metadata'><div class='detail-title'>Metadata</div>" +
+      "<div class='detail-row'>" + escape_html(span.metadata.to_string()) + "</div></div>"
+  }
+
+  let mut events_display = ""
+  if span.events.length() > 0 {
+    events_display = "<div class='span-events'><div class='detail-title'>Events</div>"
+    for event in span.events {
+      let event_data = match event.data {
+        None => ""
+        Some(data) => ": " + escape_html(data)
+      }
+      let elapsed = event.timestamp_ms - span.start_time_ms
+      events_display = events_display +
+        "<div class='detail-row'><span class='event-time'>+" + "\{elapsed}" +
+        "ms</span><span class='detail-key'>" + escape_html(event.name) +
+        "</span>" + event_data + "</div>"
+    }
+    events_display = events_display + "</div>"
+  }
+
   let children : Array[String] = []
   for s in trace.spans.values() {
     match s.parent_id {
@@ -109,7 +146,7 @@ fn render_span_node(trace : @trace.Trace, span_id : String) -> String {
     children_html = children_html + "</div>"
   }
 
-  "<div class='span-node " + cls + "'>" +
+  "<div class='span-node " + cls + "' data-status='" + cls + "'>" +
     "<div class='span-header' onclick=\"this.parentElement.classList.toggle('collapsed')\">" +
       "<span class='span-toggle'>" + (if children.length() > 0 { "▼" } else { " " }) + "</span>" +
       "<span class='span-badge " + cls + "'>" + status_text(span.status) + "</span>" +
@@ -117,7 +154,7 @@ fn render_span_node(trace : @trace.Trace, span_id : String) -> String {
       "<span class='span-duration'>" + duration + "ms</span>" +
     "</div>" +
     "<div class='span-body'>" +
-      input_display + output_display + error_display + children_html +
+      input_display + output_display + error_display + metadata_display + events_display + children_html +
     "</div>" +
   "</div>"
 }
@@ -192,6 +229,7 @@ pub fn export_trace_html(trace : @trace.Trace) -> String {
   "<title>MoonTrace - " + escape_html(trace.id) + "</title>" +
   "<style>" + css_styles() + "</style></head><body>" +
   "<h1>MoonTrace: " + escape_html(trace.id) + "</h1>" +
+  "<div class='trace-controls'><input id='trace-search' type='search' placeholder='Search spans, metadata, events...' oninput='filterTrace()' /><select id='trace-status' onchange='filterTrace()'><option value='all'>All statuses</option><option value='ok'>OK</option><option value='error'>ERROR</option><option value='running'>RUNNING</option><option value='skipped'>SKIPPED</option></select><span id='filter-count' class='filter-count'></span></div>" +
   "<div class='stats'>" +
     "<div class='stat-card'><div class='stat-value'>" + "\{total_spans}" + "</div><div class='stat-label'>Spans</div></div>" +
     "<div class='stat-card error'><div class='stat-value'>" + "\{error_count}" + "</div><div class='stat-label'>Errors</div></div>" +
@@ -199,6 +237,7 @@ pub fn export_trace_html(trace : @trace.Trace) -> String {
   "</div>" +
   "<div class='section'><div class='section-title'>Span Tree</div>" + tree_html + "</div>" +
   "<div class='section'><div class='section-title'>Timeline</div>" + timeline_html + "</div>" +
+  "<script>function filterTrace(){const q=(document.getElementById('trace-search').value||'').toLowerCase();const status=document.getElementById('trace-status').value;let visible=0;document.querySelectorAll('.span-node').forEach(n=>{const text=n.textContent.toLowerCase();const match=!q||text.includes(q);const statusMatch=status==='all'||n.dataset.status===status||n.querySelector('.span-node[data-status='+status+']');n.classList.toggle('filtered',!(match&&statusMatch));if(match&&statusMatch)visible++;});document.getElementById('filter-count').textContent=visible+' spans';}filterTrace();</script>" +
   "</body></html>"
 }
 
