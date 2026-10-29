@@ -66,3 +66,27 @@ HTML: traces/registry-smoke.html
 - 公开包页面：https://mooncakes.io/docs/guo-dong-123/moon-trace@0.1.1
 - 包校验和：`7c2ee1c605aacf862b0489c785c3b78744f113c44a0b820234332faa7918534b`。
 - 发布前验证：`moon check --target native`、`moon test --target native`（33/33）、`moon build --target native`；上传包解包后再次 `moon check` 通过。
+
+## 0.1.2 发布记录
+
+- 发布时间：2026-10-29，Asia/Shanghai。
+- 发布源码提交：`62c70f9`。
+- `moon publish` 返回 `Server status: 200 OK`；上传 ZIP 解包后的类型检查通过。
+- 公开页面：https://mooncakes.io/docs/guo-dong-123/moon-trace@0.1.2
+- 浏览器确认页面显示 `0.1.2 (latest)`；官网公开 manifest 的 `build_status` 为 `success`。
+- 发布包：https://download.mooncakes.io/user/guo-dong-123/moon-trace/0.1.2.zip
+- 下载包与本地上传 ZIP 字节一致，SHA-256：
+
+```text
+a3d549220d936910e3e5c46c8a40a7cefc9d0600d796c832925681053fc3711a
+```
+
+发布前通过 45 项 MoonBit native 测试、16 个独立进程的 48 条快照写入验证，以及 Chromium 的筛选联动、折叠恢复、转义和 1440/390/320px 视口检查。详细范围见 [验证记录](VALIDATION_0.1.2.md)。研究示例原有的三项 `Show` 弃用警告仍存在。
+
+在仓库之外创建独立消费项目，依赖正式的 `guo-dong-123/moon-trace@0.1.2`，未引用本地 checkout 或路径依赖。完整注册表更新超时，因此临时使用官网公开 manifest 中的原始元数据补齐该包的本机索引；下载仍来自正式注册表，校验和与公开 ZIP 一致，验证后已恢复原索引状态。
+
+独立项目实际运行结果：
+
+```text
+PASS: Mooncakes 0.1.2 installed independently; concurrent tracing, Int64 timestamps, atomic storage, recovery, replay, terminal and HTML export
+```
