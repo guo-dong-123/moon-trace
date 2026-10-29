@@ -90,3 +90,25 @@ a3d549220d936910e3e5c46c8a40a7cefc9d0600d796c832925681053fc3711a
 ```text
 PASS: Mooncakes 0.1.2 installed independently; concurrent tracing, Int64 timestamps, atomic storage, recovery, replay, terminal and HTML export
 ```
+
+## 0.1.3 发布记录
+
+- 发布时间：2026-10-29，Asia/Shanghai。
+- 发布源码提交：`69c36a7`；工具链固定为 `moonc 0.10.14+7d59c7ec9`、`moon 0.1.20260920`。
+- GitHub 公开仓库的 `main` 已同步最新源码；[该提交的 Linux CI](https://github.com/guo-dong-123/moon-trace/actions/runs/40847292955) 已成功完成。
+- CI 实际执行最低编译器门槛、类型检查、45 项 MoonBit 测试、3 项版本检查测试、覆盖摘要、native 构建、多进程集成和分发包完整性检查。
+- `moon publish` 返回 `Server status: 200 OK`；上传 ZIP 解包后的检查通过。
+- [公开包页面](https://mooncakes.io/docs/guo-dong-123/moon-trace@0.1.3) 与官网 manifest 显示最新版本为 `0.1.3`，服务端构建状态为 `success`。
+- [下载包](https://download.mooncakes.io/user/guo-dong-123/moon-trace/0.1.3.zip) 与上传 ZIP 完全一致，校验和也与注册表一致：
+
+```text
+df7d4bb61fe0ca0343f13364074f6b0bfdd80a87ce24f44aaf3b1afaede1dfc0
+```
+
+本次在仓库之外创建全新消费项目，正常执行 `moon update` 后，通过注册表安装 `guo-dong-123/moon-trace@0.1.3`；未使用本地路径依赖，也未临时修改索引。以 `moonc 0.10.14` 运行 `moon run . --target native --deny-warn`，实际结果：
+
+```text
+PASS: Mooncakes 0.1.3 installed independently; concurrent tracing, Int64 timestamps, atomic storage, recovery, replay, terminal and HTML export
+```
+
+分发包包含 `.moonbit-version`、README、MIT LICENSE、依赖声明、版本检查脚本及原生 C 辅助模块；不包含本地凭证、依赖 checkout 或构建缓存。完整九项要求见 [验收清单](ACCEPTANCE.md)。
