@@ -6,7 +6,7 @@
 - Add a compiler version gate and tests covering version ordering and prerelease rejection.
 - Qualify package symbols in blackbox tests and explicitly expose trait methods for the new compiler. Remove deprecated collection formatting from the research Agent example.
 - Run check, instrumented tests and native build with compiler warnings treated as errors; print coverage summaries in GitHub Actions.
-- Update the submission materials, runnable quick start, dependency notices and requirement checklist to match the current release.
+- Reproduce the submission checks using the updated quick start and [acceptance checklist](docs/ACCEPTANCE.md), with dependency notices matching this release.
 
 ## 0.1.2 — 2026-10-29
 

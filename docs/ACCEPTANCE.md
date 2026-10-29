@@ -29,6 +29,8 @@ moon coverage report -f summary
 moon build --target native --deny-warn
 python3 -m unittest discover -s scripts -p 'test_*.py'
 python3 scripts/verify_native.py
+moon package
+python3 scripts/verify_package.py
 ```
 
 浏览器验证另外运行 `python3 scripts/verify_html.py`，需安装开发工具 `agent-browser` 和 Chromium。真实 Bailian 模型示例需要用户自己的 API Key，不是上述离线验收的前置条件。最新 CI 结果以 [GitHub Actions](https://github.com/guo-dong-123/moon-trace/actions) 中对应提交为准。

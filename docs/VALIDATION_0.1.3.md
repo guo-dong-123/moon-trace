@@ -19,6 +19,7 @@ moonrun 0.1.20260920
 | MoonBit native 测试 | 45/45，通过；包括启用覆盖率的运行 |
 | Python 编译器门槛测试 | 3/3，通过；覆盖旧版本、最低版本、新版本、异常输出和预发布版本 |
 | Native 构建，编译器警告视为错误 | PASS |
+| 发布 ZIP 内容检查 | PASS，包含工具链固定文件、原生辅助模块、README 与许可证；排除本地缓存和凭证 |
 | 多进程集成脚本 | PASS，16 个独立进程写入 48 条不同记录；损坏索引恢复、CLI、回放与并发会话通过 |
 | Chromium 检查 | PASS，筛选联动、空结果、折叠恢复、键盘操作、转义及 1440/390/320px 视口 |
 
@@ -38,9 +39,11 @@ moon test --target native --enable-coverage --deny-warn
 moon coverage report -f summary
 moon build --target native --deny-warn
 python3 scripts/verify_native.py
+moon package
+python3 scripts/verify_package.py
 python3 scripts/verify_html.py
 ```
 
 覆盖摘要会包含没有单元测试入口的 CLI 与示例，因此不能把整库摘要冒充核心功能的覆盖率或宣称 100% 覆盖。CLI、多进程和浏览器路径另由集成脚本验证。真实付费模型请求不在本次离线验收范围内。
 
-本地平台为 macOS native；Linux native 以 [GitHub Actions](https://github.com/guo-dong-123/moon-trace/actions/workflows/ci.yml) 对应提交的结果为准。许可证、公开仓库和发布要求见 [九项验收清单](ACCEPTANCE.md)，正式包的验证记录见 [发布记录](MOONCAKES_RELEASE.md)。
+本地平台为 macOS native。提交 `7b0cab2` 已通过 [Linux native CI](https://github.com/guo-dong-123/moon-trace/actions/runs/40845841869)，包括 moonc 0.10.14 门槛检查、类型检查、45 项测试、构建、多进程集成及分发包验证。后续提交以 [GitHub Actions](https://github.com/guo-dong-123/moon-trace/actions/workflows/ci.yml) 对应结果为准。许可证、公开仓库和发布要求见 [九项验收清单](ACCEPTANCE.md)，正式包的验证记录见 [发布记录](MOONCAKES_RELEASE.md)。

@@ -40,7 +40,7 @@ let result = @trace.span("tool.web_search", Some(query), () => {
 
 ### 3.3 本地存储与查看
 
-项目提供内存存储和 JSON 文件存储。JSON 存储使用单条 trace 一个不可覆盖的快照文件；`index.json` 是可重建缓存，列表直接扫描快照，默认目录为 `~/.moontrace/traces/`，也可以通过 `MOONTRACE_DIR` 指定目录。
+项目提供内存存储和 JSON 文件存储。JSON 存储使用单条 trace 一个不可覆盖的快照文件；`index.json` 是可重建缓存，列表直接扫描快照。`JsonFileStore::default()` 的目录为 `~/.moontrace/traces/`；CLI 和示例另支持 `MOONTRACE_DIR`，SDK 调用方可用 `JsonFileStore::new(dir)` 指定目录。
 
 从仓库根目录通过 `moon run src/cli` 启动 CLI，例如：
 
@@ -118,9 +118,13 @@ failure_diagnosis 生成 1 个错误 Span 和 1 个 fallback 事件
 ```bash
 git clone https://github.com/guo-dong-123/moon-trace.git
 cd moon-trace
+curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s -- "$(cat .moonbit-version)"
+export PATH="$HOME/.moon/bin:$PATH"
+python3 scripts/check_toolchain.py
 moon update
-moon build
-moon test
+moon check --target native --deny-warn
+moon build --target native --deny-warn
+moon test --target native --deny-warn
 moon run examples/demo_agent
 export MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-mvp.XXXXXX)"
 moon run examples/research_agent

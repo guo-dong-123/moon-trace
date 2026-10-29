@@ -67,12 +67,12 @@ import {
 This snippet illustrates the API; `search_web` represents your own tool implementation.
 
 ```moonbit
-fn run_agent(query : String) -> String {
+fn run_agent(query : String) -> String raise Failure {
   ignore(@trace.start_trace())
 
   let result = @trace.span("agent.run", Some(query), () => {
     // Nested spans automatically form a tree
-    let plan = @trace.span("agent.plan", Some(query), () => {
+    let _plan = @trace.span("agent.plan", Some(query), () => {
       "search -> calculate -> answer"
     })
 
@@ -181,7 +181,7 @@ examples/
 | `@trace.span_async(name, input, body)` | Trace an async LLM or network-backed operation |
 | `@trace.add_event(name, data)` | Add a custom event to the current span |
 | `@trace.set_metadata(key, value)` | Attach metadata to the current span |
-| `@trace.print_trace()` | Print current trace tree to stdout |
+| `@trace.print_trace(trace)` | Print the supplied trace tree to stdout |
 | `TraceSession::new()` / `session.context()` | Create an isolated recording session and root context |
 | `span_in(ctx, name, input, body)` / `span_async_in(...)` | Record with explicit child context, including concurrent tasks |
 | `session.finish()` | Complete a session after tasks join; rejects active spans |
@@ -259,13 +259,14 @@ Spans: 6  Errors: 1  Elapsed: 15ms  Cumulative span time: 23ms
     ├── [ok] agent.plan (3ms)
     ├── [ok] tool.web_search (1ms)
     ├── [ok] tool.calculator (1ms)
-    └── [error] tool.knowledge_base (1ms) error=Knowledge base timeout after 5000ms
-        └── [ok] agent.synthesize (2ms)
+    ├── [error] tool.knowledge_base (1ms) error=Knowledge base timeout after 5000ms
+    └── [ok] agent.synthesize (2ms)
 ```
 
 ### HTML Export
 
 Each exported HTML file includes:
+
 - Summary stats (span count, errors, elapsed duration and cumulative span time)
 - Search metadata/events and combine with a status filter; matched spans synchronize with the timeline
 - Matching ancestors stay visible as context; clearing filters restores prior collapse state
@@ -359,7 +360,8 @@ Expected acceptance evidence:
 
 - `moonc >= 0.10.14`; verified with `moonc 0.10.14+7d59c7ec9` and `moon 0.1.20260920`. The exact installer version is recorded in `.moonbit-version`.
 - `moonbitlang/x@0.5.4` (filesystem access)
-- `moonbitlang/async@0.20.1` and system `curl` (real Bailian Agent example only)
+- `moonbitlang/async@0.20.1` (async tracing tests and concurrent/Bailian Agent examples)
+- System `curl` (real Bailian Agent example only)
 
 The tracing and examples are primarily implemented in MoonBit. Atomic filesystem commits use one small native C helper. Python scripts are development/CI checks; they are not required by applications importing the SDK.
 
@@ -367,7 +369,10 @@ Development integration checks (Python is only needed for these scripts):
 
 ```bash
 moon build --target native
+python3 -m unittest discover -s scripts -p 'test_*.py'
 python3 scripts/verify_native.py
+moon package
+python3 scripts/verify_package.py
 # Optional Chromium checks using the agent-browser CLI:
 python3 scripts/verify_html.py
 ```
@@ -375,6 +380,8 @@ python3 scripts/verify_html.py
 See [0.1.2 validation](docs/VALIDATION_0.1.2.md) for tested scenarios and limits.
 
 The compiler requirement, warning-free migration and current submission checks are recorded in [0.1.3 validation](docs/VALIDATION_0.1.3.md).
+
+For command details and project context, see the [CLI guide](docs/CLI_GUIDE.md), [technical overview](docs/TECHNICAL_OVERVIEW.md), [project proposal](docs/PROPOSAL.md), and [changelog](CHANGELOG.md). The checked-in [evidence](docs/evidence/README.md) preserves earlier demo output; generate current random trace IDs with the commands above.
 
 ## License
 
