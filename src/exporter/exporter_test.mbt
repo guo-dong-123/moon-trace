@@ -16,7 +16,7 @@ test "export_html_escapes_trace_content" {
   match @trace.end_trace() {
     None => assert_true(false)
     Some(trace) => {
-      let html = export_trace_html(trace)
+      let html = @exporter.export_trace_html(trace)
       assert_true(html.contains("root &lt;trace&gt;"))
       assert_true(html.contains("&#39; onclick=&#39;alert(1)"))
       assert_true(
@@ -44,7 +44,7 @@ test "export includes independent roots in one session" {
   let session = @trace.TraceSession::new()
   ignore(@trace.span_in(session.context(), "first-root", None, _ => "one"))
   ignore(@trace.span_in(session.context(), "second-root", None, _ => "two"))
-  let html = export_trace_html(session.finish())
+  let html = @exporter.export_trace_html(session.finish())
   assert_true(html.contains("first-root"))
   assert_true(html.contains("second-root"))
   assert_true(html.contains("Elapsed duration"))

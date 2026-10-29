@@ -1,13 +1,13 @@
 // Tests for trace core module
 
-fn is_error_status(s : SpanStatus) -> Bool {
+fn is_error_status(s : @trace.SpanStatus) -> Bool {
   match s {
     Error => true
     _ => false
   }
 }
 
-fn is_ok_status(s : SpanStatus) -> Bool {
+fn is_ok_status(s : @trace.SpanStatus) -> Bool {
   match s {
     Ok => true
     _ => false
@@ -32,12 +32,12 @@ async fn async_test_failure() -> String raise Failure {
 }
 
 test "span_captures_input_output" {
-  ignore(start_trace())
-  let result = span("test_span", Some("input_data"), () => {
+  ignore(@trace.start_trace())
+  let result = @trace.span("test_span", Some("input_data"), () => {
     "output_data"
   })
   inspect(result, content="output_data")
-  match end_trace() {
+  match @trace.end_trace() {
     None => inspect("no trace", content="trace")
     Some(trace) => {
       assert_true(trace.spans.length() == 1)
@@ -65,17 +65,17 @@ test "span_captures_input_output" {
 }
 
 test "nested_spans_form_tree" {
-  ignore(start_trace())
-  ignore(span("parent", None, () => {
-    ignore(span("child_1", None, () => {
+  ignore(@trace.start_trace())
+  ignore(@trace.span("parent", None, () => {
+    ignore(@trace.span("child_1", None, () => {
       "c1"
     }))
-    ignore(span("child_2", None, () => {
+    ignore(@trace.span("child_2", None, () => {
       "c2"
     }))
     "parent_result"
   }))
-  match end_trace() {
+  match @trace.end_trace() {
     None => inspect("no trace", content="trace")
     Some(trace) => {
       assert_true(trace.spans.length() == 3)
@@ -98,15 +98,15 @@ test "nested_spans_form_tree" {
 }
 
 test "error_span_captures_error" {
-  ignore(start_trace())
+  ignore(@trace.start_trace())
   try {
-    span("failing_span", None, () => {
+    @trace.span("failing_span", None, () => {
       raise Failure("something broke")
     })
   } catch {
     Failure(_) => ()
   }
-  match end_trace() {
+  match @trace.end_trace() {
     None => inspect("no trace", content="trace")
     Some(trace) => {
       assert_true(trace.spans.length() == 1)
@@ -130,21 +130,21 @@ test "error_span_captures_error" {
 }
 
 test "failed_span_does_not_corrupt_parent_stack" {
-  ignore(start_trace())
-  ignore(span("parent", None, () => {
+  ignore(@trace.start_trace())
+  ignore(@trace.span("parent", None, () => {
     try {
-      span("failing_child", None, () => {
+      @trace.span("failing_child", None, () => {
         raise Failure("expected failure")
       })
     } catch {
       Failure(_) => ()
     }
-    ignore(span("sibling", None, () => {
+    ignore(@trace.span("sibling", None, () => {
       "ok"
     }))
     "parent_result"
   }))
-  match end_trace() {
+  match @trace.end_trace() {
     None => inspect("no trace", content="trace")
     Some(trace) => {
       match trace.root_span_id {
@@ -164,15 +164,15 @@ test "failed_span_does_not_corrupt_parent_stack" {
 }
 
 async test "async_span_captures_output_and_error" {
-  ignore(start_trace())
-  let result = span_async("async_ok", Some("request"), async_test_success)
+  ignore(@trace.start_trace())
+  let result = @trace.span_async("async_ok", Some("request"), async_test_success)
   inspect(result, content="response")
   try {
-    ignore(span_async("async_error", None, async_test_failure))
+    ignore(@trace.span_async("async_error", None, async_test_failure))
   } catch {
     Failure(_) => ()
   }
-  match end_trace() {
+  match @trace.end_trace() {
     None => inspect("no trace", content="trace")
     Some(trace) => {
       assert_true(trace.spans.length() == 2)
@@ -194,14 +194,14 @@ async test "async_span_captures_output_and_error" {
 }
 
 test "add_event_and_metadata" {
-  ignore(start_trace())
-  ignore(span("span_with_events", None, () => {
-    add_event("step_1", Some("started"))
-    set_metadata("key", "value")
-    add_event("step_2", None)
+  ignore(@trace.start_trace())
+  ignore(@trace.span("span_with_events", None, () => {
+    @trace.add_event("step_1", Some("started"))
+    @trace.set_metadata("key", "value")
+    @trace.add_event("step_2", None)
     "done"
   }))
-  match end_trace() {
+  match @trace.end_trace() {
     None => inspect("no trace", content="trace")
     Some(trace) => {
       match trace.root_span_id {
@@ -230,11 +230,11 @@ test "add_event_and_metadata" {
 }
 
 test "trace_duration_recorded" {
-  ignore(start_trace())
-  ignore(span("timed_span", None, () => {
+  ignore(@trace.start_trace())
+  ignore(@trace.span("timed_span", None, () => {
     "result"
   }))
-  match end_trace() {
+  match @trace.end_trace() {
     None => inspect("no trace", content="trace")
     Some(trace) => {
       match trace.root_span_id {

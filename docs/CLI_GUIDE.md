@@ -5,6 +5,7 @@
 ## 1. 构建和测试
 
 ```bash
+python3 scripts/check_toolchain.py
 moon update
 moon build
 moon test

@@ -17,13 +17,13 @@ fn regression_trace(should_fail : Bool) -> @trace.Trace raise Failure {
 }
 
 test "regression_report_passes_for_same_status" {
-  let report = compare_traces(regression_trace(false), regression_trace(false))
+  let report = @replay.compare_traces(regression_trace(false), regression_trace(false))
   assert_true(report.passed())
   assert_true(report.issue_count() == 0)
 }
 
 test "regression_report_detects_status_change" {
-  let report = compare_traces(regression_trace(false), regression_trace(true))
+  let report = @replay.compare_traces(regression_trace(false), regression_trace(true))
   assert_true(!report.passed())
   assert_true(report.issue_count() == 1)
 }
@@ -50,37 +50,37 @@ fn repeated_trace(fail_first : Bool, fail_second : Bool, calls : Int) -> @trace.
 }
 
 test "regression_report_detects_missing_repeated_call" {
-  let report = compare_traces(
+  let report = @replay.compare_traces(
     repeated_trace(false, false, 2), repeated_trace(false, false, 1),
   )
   assert_true(!report.passed())
   assert_true(report.issue_count() == 1)
   match report.issues[0] {
-    RegressionIssue::MissingSpan(name) => inspect(name, content="tool.search")
+    @replay.RegressionIssue::MissingSpan(name) => inspect(name, content="tool.search")
     _ => assert_true(false)
   }
 }
 
 test "regression_report_detects_added_repeated_call" {
-  let report = compare_traces(
+  let report = @replay.compare_traces(
     repeated_trace(false, false, 1), repeated_trace(false, false, 2),
   )
   assert_true(!report.passed())
   assert_true(report.issue_count() == 1)
   match report.issues[0] {
-    RegressionIssue::AddedSpan(name) => inspect(name, content="tool.search")
+    @replay.RegressionIssue::AddedSpan(name) => inspect(name, content="tool.search")
     _ => assert_true(false)
   }
 }
 
 test "regression_report_detects_one_failed_repeated_call" {
-  let report = compare_traces(
+  let report = @replay.compare_traces(
     repeated_trace(false, false, 2), repeated_trace(false, true, 2),
   )
   assert_true(!report.passed())
   assert_true(report.issue_count() == 1)
   match report.issues[0] {
-    RegressionIssue::StatusChanged(name, before, after) => {
+    @replay.RegressionIssue::StatusChanged(name, before, after) => {
       inspect(name, content="tool.search")
       inspect(before, content="ok")
       inspect(after, content="error")
@@ -90,7 +90,7 @@ test "regression_report_detects_one_failed_repeated_call" {
 }
 
 test "regression_report_matches_repeated_calls_by_status" {
-  let report = compare_traces(
+  let report = @replay.compare_traces(
     repeated_trace(false, true, 2), repeated_trace(true, false, 2),
   )
   assert_true(report.passed())
@@ -108,12 +108,12 @@ fn regression_answer_trace(answer : String) -> @trace.Trace raise Failure {
 test "root_output_check_is_opt_in" {
   let baseline = regression_answer_trace("answer A")
   let changed = regression_answer_trace("answer B")
-  assert_true(compare_traces(baseline, changed).passed())
-  let report = compare_traces_with_options(baseline, changed, true)
+  assert_true(@replay.compare_traces(baseline, changed).passed())
+  let report = @replay.compare_traces_with_options(baseline, changed, true)
   assert_true(report.issue_count() == 1)
   match report.issues[0] {
-    RegressionIssue::RootOutputChanged(name) => inspect(name, content="agent.run")
+    @replay.RegressionIssue::RootOutputChanged(name) => inspect(name, content="agent.run")
     _ => assert_true(false)
   }
-  assert_true(compare_traces_with_options(baseline, baseline, true).passed())
+  assert_true(@replay.compare_traces_with_options(baseline, baseline, true).passed())
 }

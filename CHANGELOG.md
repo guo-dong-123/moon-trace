@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 — 2026-10-29
+
+- Require moonc >= 0.10.14 and pin the official 0.10.14+7d59c7ec9 toolchain for reproducible CI installs.
+- Add a compiler version gate and tests covering version ordering and prerelease rejection.
+- Qualify package symbols in blackbox tests and explicitly expose trait methods for the new compiler. Remove deprecated collection formatting from the research Agent example.
+- Run check, instrumented tests and native build with compiler warnings treated as errors; print coverage summaries in GitHub Actions.
+- Update the submission materials, runnable quick start, dependency notices and requirement checklist to match the current release.
+
 ## 0.1.2 — 2026-10-29
 
 - Generate trace IDs from 128-bit OS randomness, independently of process counters.

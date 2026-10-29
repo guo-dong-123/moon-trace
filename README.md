@@ -7,6 +7,10 @@ MoonTrace is a **MoonBit-native** observability tool for AI agent workflows, ins
 For a short, API-key-free review flow, see [Reviewer Demo](docs/REVIEWER_DEMO.md).
 Mooncakes publication and independent installation evidence are recorded in [Release Verification](docs/MOONCAKES_RELEASE.md).
 
+[![MoonTrace CI](https://github.com/guo-dong-123/moon-trace/actions/workflows/ci.yml/badge.svg)](https://github.com/guo-dong-123/moon-trace/actions/workflows/ci.yml)
+
+Requires **moonc >= 0.10.14**. The reproducible toolchain is pinned in [.moonbit-version](.moonbit-version), and CI rejects older compilers. See the [acceptance checklist](docs/ACCEPTANCE.md) for the nine delivery requirements.
+
 ## Why MoonTrace?
 
 When building AI agents, understanding *what happened* during an execution is as important as the final output. MoonTrace gives you:
@@ -26,7 +30,7 @@ When building AI agents, understanding *what happened* during an execution is as
 Add MoonTrace to an existing MoonBit project:
 
 ```bash
-moon add guo-dong-123/moon-trace@0.1.2
+moon add guo-dong-123/moon-trace@0.1.3
 ```
 
 The published module is [guo-dong-123/moon-trace](https://mooncakes.io/docs/guo-dong-123/moon-trace). Import the packages shown below in your own `moon.pkg`, then run your application with `--target native`. The complete workflow is verified on the native backend.
@@ -38,10 +42,13 @@ Clone this repository, update dependencies, and verify the native build:
 ```bash
 git clone https://github.com/guo-dong-123/moon-trace.git
 cd moon-trace
+curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s -- "$(cat .moonbit-version)"
+export PATH="$HOME/.moon/bin:$PATH"
+python3 scripts/check_toolchain.py
 moon update
-moon check --target native
-moon build --target native
-moon test --target native
+moon check --target native --deny-warn
+moon build --target native --deny-warn
+moon test --target native --deny-warn
 ```
 
 The same package imports work in this checkout and in projects that install the Mooncakes module:
@@ -350,9 +357,11 @@ Expected acceptance evidence:
 
 ## Requirements
 
-- MoonBit toolchain (locally verified with `moon` 0.1.20260904 and `moonc` 0.10.12; no minimum version is established)
+- `moonc >= 0.10.14`; verified with `moonc 0.10.14+7d59c7ec9` and `moon 0.1.20260920`. The exact installer version is recorded in `.moonbit-version`.
 - `moonbitlang/x@0.5.4` (filesystem access)
 - `moonbitlang/async@0.20.1` and system `curl` (real Bailian Agent example only)
+
+The tracing and examples are primarily implemented in MoonBit. Atomic filesystem commits use one small native C helper. Python scripts are development/CI checks; they are not required by applications importing the SDK.
 
 Development integration checks (Python is only needed for these scripts):
 
@@ -365,6 +374,10 @@ python3 scripts/verify_html.py
 
 See [0.1.2 validation](docs/VALIDATION_0.1.2.md) for tested scenarios and limits.
 
+The compiler requirement, warning-free migration and current submission checks are recorded in [0.1.3 validation](docs/VALIDATION_0.1.3.md).
+
 ## License
 
 MIT
+
+Dependency licenses and conceptual references are documented in [third-party notices](THIRD_PARTY.md).

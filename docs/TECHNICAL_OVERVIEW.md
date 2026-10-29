@@ -101,7 +101,7 @@ failure_diagnosis 生成 1 个错误 Span 和 1 个 fallback 事件
 
 研究型 Agent 示例不调用真实服务，使用可控的模拟工具稳定复现成功、失败和降级流程，评审无需 API key 即可运行。真实 Bailian 示例是可选演示，不影响核心 MVP 的离线复现。
 
-项目还提供 GitHub Actions，自动执行 MoonBit native 类型检查、测试、离线 Agent 回放、回归 CLI 和 native 构建。上述结果已在本地验证；新版本推送后仍需以对应提交的 CI 结果为准。本地工具链检查研究示例时仍有弃用警告。
+项目还提供 GitHub Actions，自动执行 MoonBit native 类型检查、测试、离线 Agent 回放、回归 CLI 和 native 构建。上述结果已在本地验证；新版本推送后仍需以对应提交的 CI 结果为准。0.1.3 已在 moonc 0.10.14 下以编译器警告视为错误的方式通过检查、测试和构建。
 
 ## 六、项目特色
 
@@ -142,6 +142,6 @@ MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-replay.XXXXXX)" moon run examples/repl
 - **项目名称**：MoonTrace
 - **GitHub 仓库**：https://github.com/guo-dong-123/moon-trace
 - **技术栈**：MoonBit
-- **版本**：0.1.2（并发上下文、原子存储、筛选联动与时间戳修正）
+- **版本**：0.1.3（moonc 0.10.14 适配、固定工具链和验收材料同步）
 - **测试**：45 个 MoonBit native 测试，全部通过
 - **许可证**：MIT

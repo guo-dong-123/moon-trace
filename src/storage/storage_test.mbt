@@ -25,7 +25,7 @@ fn make_test_trace(
 
 ///|
 test "memory_store_save_and_load" {
-  let store = MemoryStore::new()
+  let store = @storage.MemoryStore::new()
   let trace = make_test_trace("test_op", false)
   let tid = trace.id
   store.save(trace)
@@ -42,7 +42,7 @@ test "memory_store_save_and_load" {
 
 ///|
 test "memory_store_list" {
-  let store = MemoryStore::new()
+  let store = @storage.MemoryStore::new()
   store.save(make_test_trace("op_a", false))
   store.save(make_test_trace("op_b", true))
   let list = store.list()
@@ -58,7 +58,7 @@ test "memory_store_list" {
 
 ///|
 test "memory_store_delete" {
-  let store = MemoryStore::new()
+  let store = @storage.MemoryStore::new()
   let trace = make_test_trace("op_a", false)
   let tid = trace.id
   store.save(trace)
@@ -71,32 +71,32 @@ test "memory_store_delete" {
 
 ///|
 test "query_filter_error_only" {
-  let store = MemoryStore::new()
+  let store = @storage.MemoryStore::new()
   store.save(make_test_trace("ok_op", false))
   let err_trace = make_test_trace("err_op", true)
   let err_id = err_trace.id
   store.save(err_trace)
   store.save(make_test_trace("ok_op2", false))
-  let filter = TraceFilter::error_only()
-  let results = query_summaries(store.list(), filter)
+  let filter = @storage.TraceFilter::error_only()
+  let results = @storage.query_summaries(store.list(), filter)
   assert_true(results.length() == 1)
   inspect(results[0].trace_id, content=err_id)
 }
 
 ///|
 test "query_filter_by_name" {
-  let store = MemoryStore::new()
+  let store = @storage.MemoryStore::new()
   store.save(make_test_trace("search_agent", false))
   store.save(make_test_trace("calc_agent", false))
   store.save(make_test_trace("search_v2", false))
-  let filter = TraceFilter::with_name("search")
-  let results = query_summaries(store.list(), filter)
+  let filter = @storage.TraceFilter::with_name("search")
+  let results = @storage.query_summaries(store.list(), filter)
   assert_true(results.length() == 2)
 }
 
 ///|
 test "trace_summary_has_correct_fields" {
-  let store = MemoryStore::new()
+  let store = @storage.MemoryStore::new()
   let trace = make_test_trace("my_op", false)
   let tid = trace.id
   store.save(trace)
@@ -120,7 +120,7 @@ test "json_file_store_roundtrip" {
     _ => ()
   }
 
-  let store = JsonFileStore::new(test_dir)
+  let store = @storage.JsonFileStore::new(test_dir)
   let trace = make_test_trace("file_op", false)
   let tid = trace.id
   assert_true(store.save(trace))
@@ -148,7 +148,7 @@ test "json_file_store_reports_save_failure" {
     _ => ()
   }
   @fs.write_string_to_file(blocked_path, "not a directory")
-  let store = JsonFileStore::new(blocked_path)
+  let store = @storage.JsonFileStore::new(blocked_path)
   let trace = make_test_trace("blocked_save", false)
   assert_true(!store.save(trace))
   @fs.remove_file(blocked_path) catch {
@@ -160,7 +160,7 @@ test "json_file_store_reports_save_failure" {
 test "file store recovers stale or corrupt index and reports corrupt snapshots" {
   let trace = make_test_trace("recovery", false)
   let dir = "/tmp/moontrace-test-" + trace.id + "/nested/traces"
-  let store = JsonFileStore::new(dir)
+  let store = @storage.JsonFileStore::new(dir)
   assert_true(store.save(trace))
   @fs.write_string_to_file(dir + "/index.json", "{broken cache")
   assert_eq(store.list().length(), 1)
@@ -189,7 +189,7 @@ test "file store recovers stale or corrupt index and reports corrupt snapshots" 
 test "file store refuses conflicting overwrite and unsafe IDs" {
   let trace = make_test_trace("immutable", false)
   let dir = "/tmp/moontrace-test-" + trace.id
-  let store = JsonFileStore::new(dir)
+  let store = @storage.JsonFileStore::new(dir)
   assert_true(store.save(trace))
   assert_true(store.save(trace)) // identical retry is idempotent
   let original = @fs.read_file_to_string(dir + "/" + trace.id + ".json")
@@ -210,7 +210,7 @@ test "file store refuses conflicting overwrite and unsafe IDs" {
 test "unchanged legacy snapshot can be saved idempotently" {
   let original = make_test_trace("legacy_snapshot", false)
   let dir = "/tmp/moontrace-legacy-" + original.id
-  let store = JsonFileStore::new(dir)
+  let store = @storage.JsonFileStore::new(dir)
   assert_true(store.save(original))
   let path = dir + "/" + original.id + ".json"
   // Older derived encoders omitted absent optional fields.

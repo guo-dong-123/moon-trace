@@ -5,7 +5,14 @@
 struct SearchResult {
   title : String
   snippet : String
-} derive(Show)
+}
+
+/// A stable recording format without the deprecated Array Show implementation.
+struct SearchResults(Array[SearchResult])
+
+impl Show for SearchResults with fn output(self, logger) {
+  logger.write_string(self.0.map(result => result.title + ": " + result.snippet).join("\n"))
+}
 
 ///|
 fn search_web(query : String) -> Array[SearchResult] {
@@ -73,20 +80,21 @@ fn run_research_agent(user_query : String) -> String raise Failure {
             "thinking_complete",
             Some("Plan: search -> calculate -> synthesize"),
           )
-          steps
+          steps.join(" -> ")
         }),
       )
 
       // Step 2: Web search
-      let search_results = @trace.span(
+      let recorded_results = @trace.span(
         "tool.web_search",
         Some("{\"query\": \"" + user_query + "\"}"),
         () => {
           let results = search_web(user_query)
           @trace.set_metadata("result_count", "\{results.length()}")
-          results
+          SearchResults(results)
         },
       )
+      let search_results = recorded_results.0
 
       // Step 3: Calculation (may fail)
       let calc_result = @trace.span(

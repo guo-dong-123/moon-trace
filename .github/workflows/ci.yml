@@ -6,26 +6,40 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Install MoonBit
         run: |
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh -o "$RUNNER_TEMP/install-moonbit.sh"
+          bash "$RUNNER_TEMP/install-moonbit.sh" "$(cat .moonbit-version)"
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Enforce compiler requirement
+        run: |
+          moon version --all
+          python3 scripts/check_toolchain.py
+          python3 -m unittest discover -s scripts -p 'test_*.py'
 
       - name: Update dependencies
         run: moon update
 
       - name: Type check
-        run: moon check --target native
+        run: moon check --target native --deny-warn
 
       - name: Run tests
-        run: moon test --target native
+        run: moon test --target native --enable-coverage --deny-warn
+
+      - name: Report test coverage
+        run: moon coverage report -f summary
 
       - name: Replay an Agent offline
         run: |
@@ -33,7 +47,12 @@ jobs:
           MOONTRACE_DIR="$RUNNER_TEMP/moontrace-replay" moon run examples/replay_agent --target native
 
       - name: Build native targets
-        run: moon build --target native
+        run: moon build --target native --deny-warn
 
       - name: Verify multi-process persistence and offline workflows
         run: python3 scripts/verify_native.py
+
+      - name: Verify distributable package
+        run: |
+          moon package
+          python3 scripts/verify_package.py

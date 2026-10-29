@@ -1,12 +1,13 @@
 # MoonTrace 离线评审演示
 
-Mooncakes 包入口：[guo-dong-123/moon-trace](https://mooncakes.io/docs/guo-dong-123/moon-trace)。在独立 MoonBit 项目中执行 `moon add guo-dong-123/moon-trace@0.1.2` 后，即可导入 `guo-dong-123/moon-trace/src/trace` 等 SDK 包；完整工作流使用 `--target native`。
+Mooncakes 包入口：[guo-dong-123/moon-trace](https://mooncakes.io/docs/guo-dong-123/moon-trace)。在独立 MoonBit 项目中执行 `moon add guo-dong-123/moon-trace@0.1.3` 后，即可导入 `guo-dong-123/moon-trace/src/trace` 等 SDK 包；完整工作流使用 `--target native`。
 
 从干净克隆开始，无需 API Key、模型服务或数据库。首次下载依赖的耗时取决于网络；完成依赖准备后，以下流程可在几分钟内复现。
 
 ```bash
 git clone https://github.com/guo-dong-123/moon-trace.git
 cd moon-trace
+python3 scripts/check_toolchain.py
 moon update
 moon test --target native
 
