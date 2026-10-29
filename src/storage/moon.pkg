@@ -1,9 +1,19 @@
 import {
-  "guo-dong-123/moon-trace/src/trace" @trace,
-  "moonbitlang/core/json" @json,
-  "moonbitlang/core/debug" @debug,
-  "moonbitlang/core/env" @env,
-  "moonbitlang/x/fs" @fs,
+  "guo-dong-123/moon-trace/src/trace",
+  "moonbitlang/core/json",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/env",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/encoding/hex",
+  "moonbitlang/x/fs",
 }
 
 pkgtype(kind: "library")
+
+options(
+  "native-stub": [ "atomic_native.c" ],
+  targets: {
+    "atomic_native.mbt": [ "native", "llvm" ],
+    "atomic_other.mbt": [ "js", "wasm", "wasm-gc" ],
+  },
+)

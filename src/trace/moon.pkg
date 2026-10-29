@@ -1,13 +1,18 @@
 import {
-  "moonbitlang/core/bench" @bench,
-  "moonbitlang/core/env" @env,
-  "moonbitlang/core/ref" @ref,
-  "moonbitlang/core/json" @json,
-  "moonbitlang/core/debug" @debug,
+  "moonbitlang/core/bench",
+  "moonbitlang/core/env",
+  "moonbitlang/core/ref",
+  "moonbitlang/core/json",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/encoding/hex",
 }
 
 import {
-  "moonbitlang/async" @async,
+  "moonbitlang/async",
 } for "test"
+
+import {
+  "moonbitlang/async",
+} for "wbtest"
 
 pkgtype(kind: "library")

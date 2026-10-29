@@ -21,13 +21,14 @@ export MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-mvp-demo.XXXXXX)"
 moon run examples/research_agent
 ```
 
-该示例包含正常工具调用、计算步骤、知识库失败和降级回答。它不访问网络，也不需要模型密钥。示例的 Trace ID 从 `trace_1` 重新开始，因此不同示例不要共用存储目录，否则可能覆盖同名 Trace。
+该示例包含正常工具调用、计算步骤、知识库失败和降级回答，不访问网络。0.1.2 起 Trace ID 使用随机值，重复运行不再覆盖同名记录。用 `ids` 获取本次实际 ID。
 
 ## 3. 查看执行记录
 
 ```bash
 moon run src/cli list
-moon run src/cli show trace_8
+TRACE_ID=$(moon run src/cli ids --errors | head -n 1)
+moon run src/cli show "$TRACE_ID"
 ```
 
 `show` 输出应包含嵌套的 Agent、搜索、计算和知识库 Span，并显示失败 Span 的错误信息。
@@ -53,10 +54,10 @@ MOONTRACE_DIR="$FAILURE_DIR" moon run src/cli errors
 ## 4. 导出 HTML
 
 ```bash
-moon run src/cli export trace_8 "$MOONTRACE_DIR/trace_8.html"
+moon run src/cli export "$TRACE_ID" "$MOONTRACE_DIR/trace.html"
 ```
 
-然后用浏览器打开 `$MOONTRACE_DIR/trace_8.html`。页面包含 Span 数量、错误数量、总耗时、可折叠调用树和时间线。仓库自带的 `docs/evidence/` 是固定示例，不应在复现时直接覆盖。
+然后用浏览器打开 `$MOONTRACE_DIR/trace.html`。页面包含 Span 数量、错误数量、实际历时、Span 累计耗时、可折叠调用树和联动筛选时间线。仓库自带的 `docs/evidence/` 是固定示例，不应在复现时直接覆盖。
 
 ## 5. 运行真实 Bailian Agent
 
@@ -76,7 +77,9 @@ moon run --target native examples/bailian_agent
 
 | 命令 | 作用 |
 |---|---|
-| `moon run src/cli list` | 列出已保存 Trace |
+| `moon run src/cli list` | 扫描并列出已保存 Trace |
+| `moon run src/cli ids --errors` | 输出含错误的 Trace ID，方便脚本取值 |
+| `moon run src/cli repair` | 重建索引并报告损坏记录；不删除原文件 |
 | `moon run src/cli errors` | 只列出包含错误 Span 的 Trace |
 | `moon run src/cli list --errors` | 按错误状态筛选 |
 | `moon run src/cli list --name <text>` | 按根 Span 名称筛选 |
@@ -93,3 +96,15 @@ moon run --target native examples/bailian_agent
 运行 `MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-replay.XXXXXX)" moon run examples/replay_agent` 可录制一次工具调用，然后离线重跑同一 Agent。示例会核对重复工具调用顺序、失败后的降级结果以及回放期间真实工具调用次数不变。
 
 真实 Bailian 示例默认不把用户问题、工具参数、最终回答和服务端错误正文写入 Trace，但普通 `@trace.span` 会记录调用者提供的输入与返回值。不要把密钥或私人资料传给普通 Span，导出前应检查 Trace 内容。
+
+## 0.1.2 并发与恢复验收
+
+```bash
+moon run examples/concurrent_agent --target native
+moon run src/cli repair
+moon build --target native
+python3 scripts/verify_native.py
+python3 scripts/verify_html.py # 需要额外安装 agent-browser 和 Chromium
+```
+
+并发 Agent 应使用 `TraceSession` / `span_async_in`，旧的全局 API 只适合单执行流。完整注意事项见 [README](../README.md#storage-and-012-migration)。

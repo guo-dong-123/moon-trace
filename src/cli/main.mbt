@@ -1,5 +1,6 @@
 // MoonTrace CLI entry point
 
+///|
 fn print_help() -> Unit {
   println("MoonTrace - Agent execution trace observability tool")
   println("")
@@ -10,12 +11,22 @@ fn print_help() -> Unit {
   println("    --errors              Show only traces containing errors")
   println("    --name <text>         Filter by root span name")
   println("  errors                  List only traces containing errors")
+  println("  ids [--errors] [--name <text>]  Print trace IDs for scripts")
+  println(
+    "  repair                  Rebuild index and report unreadable trace files",
+  )
   println("  compare <a> <b>         Compare two traces by span name")
-  println("  regress <base> <new> [--check-output]  Check spans and optionally the final answer")
+  println(
+    "  regress <base> <new> [--check-output]  Check spans and optionally the final answer",
+  )
   println("  replay <trace_id>       Replay recorded span outputs")
   println("  show <trace_id>         Show detailed trace view in terminal")
-  println("  export <trace_id> [out] Export trace to HTML file (default: <id>.html)")
-  println("  export-all [dir]        Export all traces to HTML files in directory")
+  println(
+    "  export <trace_id> [out] Export trace to HTML file (default: <id>.html)",
+  )
+  println(
+    "  export-all [dir]        Export all traces to HTML files in directory",
+  )
   println("  delete <trace_id>       Delete a trace")
   println("  help                    Show this help")
   println("")
@@ -24,6 +35,7 @@ fn print_help() -> Unit {
   println("  AGENT_QUERY             Override the Bailian demo question")
 }
 
+///|
 fn get_store() -> @storage.JsonFileStore {
   match @env.get_env_var("MOONTRACE_DIR") {
     None => @storage.JsonFileStore::default()
@@ -31,19 +43,46 @@ fn get_store() -> @storage.JsonFileStore {
   }
 }
 
-fn cmd_list(filter : @storage.TraceFilter) -> Unit {
+///|
+fn cmd_list(filter : @storage.TraceFilter, ids_only? : Bool = false) -> Unit {
   let store = get_store()
-  println(@tui.render_trace_list(@storage.query_summaries(store.list(), filter)))
+  let summaries = @storage.query_summaries(store.list(), filter)
+  if ids_only {
+    for summary in summaries {
+      println(summary.trace_id)
+    }
+  } else {
+    println(@tui.render_trace_list(summaries))
+  }
+  match store.last_error() {
+    Some(message) => println("Warning: " + message)
+    None => ()
+  }
 }
 
-fn cmd_list_args(args : Array[String]) -> Unit {
+///|
+fn cmd_repair() -> Unit {
+  let report = get_store().repair()
+  println(
+    "Recovered \{report.trace_count} traces; index rebuilt: \{report.index_rebuilt}",
+  )
+  for issue in report.issues {
+    println("Warning: " + issue)
+  }
+  if !report.index_rebuilt || !report.issues.is_empty() {
+    @sys.exit(1)
+  }
+}
+
+///|
+fn cmd_list_args(args : Array[String], ids_only? : Bool = false) -> Unit {
   let mut errors = false
-  let mut name : Option[String] = None
+  let mut name : String? = None
   let mut i = 2
   while i < args.length() {
     match args[i] {
       "--errors" => errors = true
-      "--name" => {
+      "--name" =>
         if i + 1 < args.length() {
           name = Some(args[i + 1])
           i = i + 1
@@ -51,7 +90,6 @@ fn cmd_list_args(args : Array[String]) -> Unit {
           println("Error: '--name' requires a value")
           return
         }
-      }
       value => {
         println("Error: unknown list option: " + value)
         return
@@ -65,28 +103,27 @@ fn cmd_list_args(args : Array[String]) -> Unit {
     (false, Some(value)) => @storage.TraceFilter::with_name(value)
     (false, None) => @storage.TraceFilter::new()
   }
-  cmd_list(filter)
+  cmd_list(filter, ids_only~)
 }
 
+///|
 fn cmd_show(trace_id : String) -> Unit {
   let store = get_store()
   match store.load(trace_id) {
-    None => println("Error: trace not found: " + trace_id)
+    None =>
+      println(
+        "Error: " + store.last_error().unwrap_or("trace not found: " + trace_id),
+      )
     Some(trace) => println(@tui.render_trace_detail(trace))
   }
 }
 
-fn trace_duration(trace : @trace.Trace) -> Int {
-  let mut total = 0
-  for span in trace.spans.values() {
-    match span.duration_ms {
-      None => ()
-      Some(value) => total = total + value
-    }
-  }
-  total
+///|
+fn trace_duration(trace : @trace.Trace) -> Int64 {
+  trace.duration_ms().unwrap_or(0)
 }
 
+///|
 fn trace_error_count(trace : @trace.Trace) -> Int {
   let mut count = 0
   for span in trace.spans.values() {
@@ -97,6 +134,7 @@ fn trace_error_count(trace : @trace.Trace) -> Int {
   count
 }
 
+///|
 fn status_label(status : @trace.SpanStatus) -> String {
   match status {
     @trace.Ok => "ok"
@@ -106,7 +144,8 @@ fn status_label(status : @trace.SpanStatus) -> String {
   }
 }
 
-fn find_span_by_name(trace : @trace.Trace, name : String) -> Option[@trace.Span] {
+///|
+fn find_span_by_name(trace : @trace.Trace, name : String) -> @trace.Span? {
   for span in trace.spans.values() {
     if span.name == name {
       return Some(span)
@@ -115,6 +154,7 @@ fn find_span_by_name(trace : @trace.Trace, name : String) -> Option[@trace.Span]
   None
 }
 
+///|
 fn cmd_compare(first_id : String, second_id : String) -> Unit {
   let store = get_store()
   let first = store.load(first_id)
@@ -123,9 +163,14 @@ fn cmd_compare(first_id : String, second_id : String) -> Unit {
     (Some(a), Some(b)) => {
       println("=== MoonTrace Trace Comparison ===")
       println("A: " + a.id + "  B: " + b.id)
-      println("Total duration: " + "\{trace_duration(a)}ms -> \{trace_duration(b)}ms")
+      println(
+        "Elapsed duration: " +
+        "\{trace_duration(a)}ms -> \{trace_duration(b)}ms",
+      )
       println("Span count: " + "\{a.spans.length()} -> \{b.spans.length()}")
-      println("Error count: " + "\{trace_error_count(a)} -> \{trace_error_count(b)}")
+      println(
+        "Error count: " + "\{trace_error_count(a)} -> \{trace_error_count(b)}",
+      )
       println("")
       println("Span changes:")
       let seen : Map[String, Bool] = Map([])
@@ -137,12 +182,20 @@ fn cmd_compare(first_id : String, second_id : String) -> Unit {
             let first_duration = span.duration_ms.unwrap_or(0)
             let second_duration = other.duration_ms.unwrap_or(0)
             let delta = second_duration - first_duration
-            let status_change = if status_label(span.status) == status_label(other.status) {
+            let status_change = if status_label(span.status) ==
+              status_label(other.status) {
               status_label(span.status)
             } else {
               status_label(span.status) + " -> " + status_label(other.status)
             }
-            println("- " + span.name + ": " + "\{first_duration}ms -> \{second_duration}ms (delta \{delta}ms, " + status_change + ")")
+            println(
+              "- " +
+              span.name +
+              ": " +
+              "\{first_duration}ms -> \{second_duration}ms (delta \{delta}ms, " +
+              status_change +
+              ")",
+            )
           }
         }
       }
@@ -157,22 +210,33 @@ fn cmd_compare(first_id : String, second_id : String) -> Unit {
   }
 }
 
+///|
 fn print_replay_result(name : String, result : @replay.ReplayResult) -> Unit {
   match result {
-    @replay.Output(value) => println("- " + name + ": output replayed (" + "\{value.length()}" + " chars)")
-    @replay.Error(message) => println("- " + name + ": recorded error: " + message)
+    @replay.Output(value) =>
+      println(
+        "- " + name + ": output replayed (" + "\{value.length()}" + " chars)",
+      )
+    @replay.Error(message) =>
+      println("- " + name + ": recorded error: " + message)
     @replay.Missing => println("- " + name + ": missing from recording")
   }
 }
 
+///|
 fn cmd_replay(trace_id : String) -> Unit {
   let store = get_store()
   match store.load(trace_id) {
-    None => println("Error: trace not found: " + trace_id)
+    None =>
+      println(
+        "Error: " + store.last_error().unwrap_or("trace not found: " + trace_id),
+      )
     Some(trace) => {
       let session = @replay.ReplaySession::from_trace(trace)
       println("=== MoonTrace Replay: " + trace_id + " ===")
-      println("Recorded spans are returned locally; external tools are not called.")
+      println(
+        "Recorded spans are returned locally; external tools are not called.",
+      )
       for span in trace.spans.values() {
         print_replay_result(span.name, session.replay(span.name))
       }
@@ -181,28 +245,41 @@ fn cmd_replay(trace_id : String) -> Unit {
   }
 }
 
+///|
 fn print_regression_issue(issue : @replay.RegressionIssue) -> Unit {
   match issue {
     @replay.MissingSpan(name) => println("- missing span: " + name)
     @replay.AddedSpan(name) => println("- added span: " + name)
-    @replay.StatusChanged(name, before, after) => println("- status changed: " + name + " (" + before + " -> " + after + ")")
+    @replay.StatusChanged(name, before, after) =>
+      println(
+        "- status changed: " + name + " (" + before + " -> " + after + ")",
+      )
     @replay.RootOutputChanged(name) => println("- root output changed: " + name)
   }
 }
 
-fn cmd_regress(baseline_id : String, candidate_id : String, check_output : Bool) -> Unit {
+///|
+fn cmd_regress(
+  baseline_id : String,
+  candidate_id : String,
+  check_output : Bool,
+) -> Unit {
   let store = get_store()
   match (store.load(baseline_id), store.load(candidate_id)) {
     (Some(baseline), Some(candidate)) => {
-      let report = @replay.compare_traces_with_options(baseline, candidate, check_output)
+      let report = @replay.compare_traces_with_options(
+        baseline, candidate, check_output,
+      )
       println("=== MoonTrace Regression Check ===")
       println("Baseline: " + baseline_id + "  Candidate: " + candidate_id)
       if report.passed() {
-        println(if check_output {
-          "PASS: no span, status, or root output regressions detected"
-        } else {
-          "PASS: no span or status regressions detected"
-        })
+        println(
+          if check_output {
+            "PASS: no span, status, or root output regressions detected"
+          } else {
+            "PASS: no span or status regressions detected"
+          },
+        )
       } else {
         println("FAIL: \{report.issue_count()} regression issue(s)")
         for issue in report.issues {
@@ -222,10 +299,16 @@ fn cmd_regress(baseline_id : String, candidate_id : String, check_output : Bool)
   }
 }
 
-fn cmd_export(trace_id : String, out_path : Option[String]) -> Unit {
+///|
+fn cmd_export(trace_id : String, out_path : String?) -> Unit {
   let store = get_store()
   match store.load(trace_id) {
-    None => println("Error: trace not found: " + trace_id)
+    None => {
+      println(
+        "Error: " + store.last_error().unwrap_or("trace not found: " + trace_id),
+      )
+      @sys.exit(2)
+    }
     Some(trace) => {
       let html = @exporter.export_trace_html(trace)
       let path = match out_path {
@@ -242,7 +325,8 @@ fn cmd_export(trace_id : String, out_path : Option[String]) -> Unit {
   }
 }
 
-fn cmd_export_all(dir : Option[String]) -> Unit {
+///|
+fn cmd_export_all(dir : String?) -> Unit {
   let store = get_store()
   let summaries = store.list()
   let out_dir = match dir {
@@ -251,10 +335,8 @@ fn cmd_export_all(dir : Option[String]) -> Unit {
   }
   // Create output directory
   if !@fs.path_exists(out_dir) {
-    try {
-      @fs.create_dir(out_dir)
-      } catch {
-          _ => println("Warning: failed to export a trace")
+    @fs.create_dir(out_dir) catch {
+      _ => println("Warning: failed to export a trace")
     }
   }
   let mut count = 0
@@ -275,14 +357,13 @@ fn cmd_export_all(dir : Option[String]) -> Unit {
   }
   // Also export index
   let index_html = @exporter.export_index_html(summaries)
-  try {
-    @fs.write_string_to_file(out_dir + "/index.html", index_html)
-  } catch {
+  @fs.write_string_to_file(out_dir + "/index.html", index_html) catch {
     _ => println("Warning: failed to export index")
   }
   println("Exported " + "\{count}" + " traces to " + out_dir + "/")
 }
 
+///|
 fn cmd_delete(trace_id : String) -> Unit {
   let store = get_store()
   if store.delete(trace_id) {
@@ -292,6 +373,7 @@ fn cmd_delete(trace_id : String) -> Unit {
   }
 }
 
+///|
 fn main {
   let args = @env.args()
   // args[0] = program path, args[1] = command
@@ -303,61 +385,55 @@ fn main {
   match cmd {
     "list" | "ls" => cmd_list_args(args)
     "errors" => cmd_list(@storage.TraceFilter::error_only())
-    "show" => {
+    "show" =>
       if args.length() < 3 {
         println("Error: 'show' requires a trace ID")
       } else {
         cmd_show(args[2])
       }
-    }
-    "compare" => {
+    "ids" => cmd_list_args(args, ids_only=true)
+    "repair" => cmd_repair()
+    "compare" =>
       if args.length() < 4 {
         println("Error: 'compare' requires two trace IDs")
       } else {
         cmd_compare(args[2], args[3])
       }
-    }
-    "replay" => {
+    "replay" =>
       if args.length() < 3 {
         println("Error: 'replay' requires a trace ID")
       } else {
         cmd_replay(args[2])
       }
-    }
-    "regress" => {
+    "regress" =>
       if args.length() < 4 {
         println("Error: 'regress' requires a baseline and candidate trace ID")
         @sys.exit(2)
+      } else if args.length() == 4 {
+        cmd_regress(args[2], args[3], false)
+      } else if args.length() == 5 && args[4] == "--check-output" {
+        cmd_regress(args[2], args[3], true)
       } else {
-        if args.length() == 4 {
-          cmd_regress(args[2], args[3], false)
-        } else if args.length() == 5 && args[4] == "--check-output" {
-          cmd_regress(args[2], args[3], true)
-        } else {
-          println("Error: expected 'regress <base> <new> [--check-output]'")
-          @sys.exit(2)
-        }
+        println("Error: expected 'regress <base> <new> [--check-output]'")
+        @sys.exit(2)
       }
-    }
-    "export" => {
+    "export" =>
       if args.length() < 3 {
         println("Error: 'export' requires a trace ID")
       } else {
         let out = if args.length() >= 4 { Some(args[3]) } else { None }
         cmd_export(args[2], out)
       }
-    }
     "export-all" => {
       let dir = if args.length() >= 3 { Some(args[2]) } else { None }
       cmd_export_all(dir)
     }
-    "delete" | "rm" => {
+    "delete" | "rm" =>
       if args.length() < 3 {
         println("Error: 'delete' requires a trace ID")
       } else {
         cmd_delete(args[2])
       }
-    }
     "help" | "--help" | "-h" => print_help()
     _ => {
       println("Unknown command: " + cmd)

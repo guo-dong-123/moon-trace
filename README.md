@@ -26,7 +26,7 @@ When building AI agents, understanding *what happened* during an execution is as
 Add MoonTrace to an existing MoonBit project:
 
 ```bash
-moon add guo-dong-123/moon-trace@0.1.0
+moon add guo-dong-123/moon-trace@0.1.2
 ```
 
 The published module is [guo-dong-123/moon-trace](https://mooncakes.io/docs/guo-dong-123/moon-trace). Import the packages shown below in your own `moon.pkg`, then run your application with `--target native`. The complete workflow is verified on the native backend.
@@ -93,15 +93,16 @@ fn run_agent(query : String) -> String {
 
 ### 3. Run and inspect an offline agent
 
-Use a fresh directory for each demonstration. Example trace IDs restart at `trace_1`, so reusing a directory across different examples can overwrite earlier traces.
+Trace IDs use 128 bits of OS randomness and remain independent across process restarts. An isolated directory still keeps demos separate from your own data. After recording, `ids` prints the current IDs for scripts:
 
 ```bash
 export MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-demo.XXXXXX)"
 moon run examples/research_agent
+TRACE_ID=$(moon run src/cli ids --errors | head -n 1)
 
 # List and inspect saved traces
 moon run src/cli list
-moon run src/cli show trace_8
+moon run src/cli show "$TRACE_ID"
 
 # List only failed traces or filter by root span name
 moon run src/cli errors
@@ -109,20 +110,20 @@ moon run src/cli list --errors
 moon run src/cli list --name research_agent
 
 # Compare two saved traces by span name
-moon run src/cli compare trace_1 trace_8
+moon run src/cli compare <baseline_id> <candidate_id>
 
 # Display recorded outputs without calling external tools
-moon run src/cli replay trace_8
+moon run src/cli replay "$TRACE_ID"
 
 # Record and rerun an Agent using captured tool responses in a separate directory
 MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-replay.XXXXXX)" moon run examples/replay_agent
 
 # Check a new execution against a known-good baseline
-moon run src/cli regress trace_1 trace_15
-moon run src/cli regress trace_1 trace_15 --check-output
+moon run src/cli regress <baseline_id> <candidate_id>
+moon run src/cli regress <baseline_id> <candidate_id> --check-output
 
 # Export to interactive HTML
-moon run src/cli export trace_8 "$MOONTRACE_DIR/trace_8.html"
+moon run src/cli export "$TRACE_ID" "$MOONTRACE_DIR/trace.html"
 
 # Export all traces + index page
 moon run src/cli export-all "$MOONTRACE_DIR/exports/"
@@ -137,10 +138,11 @@ src/
 ├── trace/          # Core data model + instrumentation SDK
 │   ├── span.mbt    # Span, SpanEvent, SpanStatus, Trace data structures
 │   ├── tracer.mbt  # Global Tracer, start_trace, span, add_event, set_metadata
-│   └── context.mbt # Async context propagation (capture_context / with_context)
+│   ├── session.mbt # Isolated sessions and explicit concurrent contexts
+│   └── context.mbt # Legacy single-flow scope snapshots
 ├── storage/        # Persistence layer
 │   ├── store.mbt   # MemoryStore, TraceSummary, TraceFilter, query
-│   └── json_file.mbt # JsonFileStore (JSON files + index.json)
+│   └── json_file.mbt # Immutable JSON snapshots + rebuildable index cache
 ├── tui/            # Terminal UI viewer
 │   └── viewer.mbt  # ANSI-colored tree rendering, list/detail views
 ├── exporter/       # Export tools
@@ -156,6 +158,7 @@ examples/
 ├── research_agent/   # Offline multi-step research agent
 ├── failure_diagnosis/ # Failed tool plus recovery path demo
 ├── replay_agent/    # Offline Agent replay with repeated tool calls
+├── concurrent_agent/ # Independent requests and parallel sibling tools
 └── bailian_agent/    # Real Qwen tool-calling agent with async traces
 ```
 
@@ -172,6 +175,11 @@ examples/
 | `@trace.add_event(name, data)` | Add a custom event to the current span |
 | `@trace.set_metadata(key, value)` | Attach metadata to the current span |
 | `@trace.print_trace()` | Print current trace tree to stdout |
+| `TraceSession::new()` / `session.context()` | Create an isolated recording session and root context |
+| `span_in(ctx, name, input, body)` / `span_async_in(...)` | Record with explicit child context, including concurrent tasks |
+| `session.finish()` | Complete a session after tasks join; rejects active spans |
+| `trace.duration_ms()` | Elapsed duration, without double counting nested work |
+| `trace.cumulative_span_duration_ms()` | Sum of all recorded span durations |
 
 ### Storage
 
@@ -180,10 +188,12 @@ examples/
 | `MemoryStore::new()` | In-memory storage |
 | `JsonFileStore::default()` | File storage at `~/.moontrace/traces/` |
 | `JsonFileStore::new(dir)` | File storage at custom directory |
-| `store.save(trace)` | Save a trace |
+| `store.save(trace)` | Atomically save a snapshot; refuse conflicting overwrite |
 | `store.load(id)` | Load a trace by ID |
-| `store.list()` | List all trace summaries |
+| `store.list()` | Scan valid snapshots; does not depend on index.json |
 | `store.delete(id)` | Delete a trace |
+| `store.repair()` | Rebuild index cache and report unreadable records |
+| `store.last_error()` | Diagnostic for the last storage operation |
 | `query_summaries(summaries, filter)` | Filter traces by name/status/time |
 
 ### Replay
@@ -199,15 +209,34 @@ let result = @trace.span("tool.lookup", Some(query), () => {
 
 `run` consumes one matching call at a time. It checks the recorded input, returns the captured output, or raises the captured error. It never invokes the tool itself. See `examples/replay_agent` for a complete offline Agent run.
 
-### Async Context
+### Concurrent Agents
+
+The global `start_trace` / `span` / `span_async` API is retained for a **single execution flow**. It is not task-local storage. For overlapping requests or sibling tasks, create one session per request and pass the callback context to children:
 
 ```moonbit
-let ctx = @trace.capture_context()
-// Inside async callback:
-@trace.with_context(ctx, () => {
-  @trace.span("async_task", None, () => { ... })
+let session = @trace.TraceSession::new()
+let answer = @trace.span_async_in(session.context(), "agent.run", None, root => {
+  let results = @async.all([
+    () => @trace.span_async_in(root, "tool.lookup", None, ctx => {
+      ctx.set_metadata("source", "local")
+      "lookup result"
+    }),
+    () => @trace.span_async_in(root, "tool.calculate", None, _ => "42"),
+  ])
+  results.join(" | ")
 })
+let recorded = session.finish()
 ```
+
+Call `finish()` after joining all tasks. Raised errors and cancellation finalize the affected spans and propagate to the caller. Explicit contexts never read or change the legacy global stack. The complete executable example is `moon run examples/concurrent_agent --target native`.
+
+### Storage and 0.1.2 migration
+
+- Trace IDs are `trace_<32 hex digits>`; existing IDs such as `trace_8` remain readable. Use `ids` or the IDs printed by an example instead of hardcoding counters.
+- Timestamp and duration fields now use `Int64` in MoonBit. Normal epoch milliseconds remain JSON numbers, and existing numeric JSON records load without conversion. A legacy negative/truncated timestamp cannot be reconstructed automatically.
+- Saves commit a complete temporary file atomically. An identical retry succeeds; different data with the same ID is rejected. Finish a recording before saving it; updating an existing snapshot requires a new trace ID.
+- `list()` scans snapshot files. A missing, stale or malformed `index.json` cannot hide records. `moon run src/cli repair` rebuilds the cache and reports corrupt trace files without deleting them. Temporary files from interrupted writes are ignored.
+- File storage requires native/LLVM and a filesystem supporting atomic same-directory commits. This release is locally verified on macOS native; Linux native is covered by the CI configuration. Windows support is implemented but has not been verified locally. There is no power-loss durability guarantee for directory entries.
 
 ## Example Output
 
@@ -216,7 +245,7 @@ let ctx = @trace.capture_context()
 ```
 === Trace trace_8 ===
 
-Spans: 6  Errors: 1  Total duration: 23ms
+Spans: 6  Errors: 1  Elapsed: 15ms  Cumulative span time: 23ms
 
 └── [ok] research_agent.run (15ms)
     input: {"query": "unavailable topic..."}
@@ -230,7 +259,9 @@ Spans: 6  Errors: 1  Total duration: 23ms
 ### HTML Export
 
 Each exported HTML file includes:
-- Summary stats (span count, error count, total duration)
+- Summary stats (span count, errors, elapsed duration and cumulative span time)
+- Search metadata/events and combine with a status filter; matched spans synchronize with the timeline
+- Matching ancestors stay visible as context; clearing filters restores prior collapse state
 - Interactive collapsible span tree
 - Horizontal timeline showing span start times and durations
 - Color-coded status badges (green=ok, red=error, yellow=running)
@@ -298,9 +329,10 @@ moon run examples/demo_agent
 # Run the full Research Agent and persist traces in an isolated directory
 export MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-mvp.XXXXXX)"
 moon run examples/research_agent
+TRACE_ID=$(moon run src/cli ids --errors | head -n 1)
 moon run src/cli list
-moon run src/cli show trace_8
-moon run src/cli export trace_8 "$MOONTRACE_DIR/trace_8.html"
+moon run src/cli show "$TRACE_ID"
+moon run src/cli export "$TRACE_ID" "$MOONTRACE_DIR/trace.html"
 
 # Run the failure diagnosis demo
 FAILURE_DIR="$(mktemp -d /tmp/moontrace-failure.XXXXXX)"
@@ -310,7 +342,7 @@ MOONTRACE_DIR="$FAILURE_DIR" moon run src/cli errors
 
 Expected acceptance evidence:
 
-- `moon test --target native` reports 33 passed tests on the verified checkout.
+- `moon test --target native` reports 45 passed tests on the verified checkout.
 - The Agent demo prints a nested trace containing `agent_think`, `tool.web_search`, `tool.calculator`, and `tool.knowledge_base`.
 - The Research Agent saves three traces, including one error trace caused by a simulated knowledge-base timeout.
 - The CLI lists and displays saved traces, and exports a self-contained HTML file.
@@ -318,9 +350,20 @@ Expected acceptance evidence:
 
 ## Requirements
 
-- MoonBit toolchain (locally verified with `moon` 0.1.20260827 and `moonc` 0.10.11; no minimum version is established)
+- MoonBit toolchain (locally verified with `moon` 0.1.20260904 and `moonc` 0.10.12; no minimum version is established)
 - `moonbitlang/x@0.5.4` (filesystem access)
 - `moonbitlang/async@0.20.1` and system `curl` (real Bailian Agent example only)
+
+Development integration checks (Python is only needed for these scripts):
+
+```bash
+moon build --target native
+python3 scripts/verify_native.py
+# Optional Chromium checks using the agent-browser CLI:
+python3 scripts/verify_html.py
+```
+
+See [0.1.2 validation](docs/VALIDATION_0.1.2.md) for tested scenarios and limits.
 
 ## License
 

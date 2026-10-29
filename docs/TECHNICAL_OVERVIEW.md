@@ -40,7 +40,7 @@ let result = @trace.span("tool.web_search", Some(query), () => {
 
 ### 3.3 本地存储与查看
 
-项目提供内存存储和 JSON 文件存储。JSON 存储使用单条 trace 一个文件和 `index.json` 索引，默认目录为 `~/.moontrace/traces/`，也可以通过 `MOONTRACE_DIR` 指定目录。
+项目提供内存存储和 JSON 文件存储。JSON 存储使用单条 trace 一个不可覆盖的快照文件；`index.json` 是可重建缓存，列表直接扫描快照，默认目录为 `~/.moontrace/traces/`，也可以通过 `MOONTRACE_DIR` 指定目录。
 
 从仓库根目录通过 `moon run src/cli` 启动 CLI，例如：
 
@@ -67,9 +67,9 @@ moon run src/cli delete <trace_id>
 | `cli` | list、show、export、export-all、delete、replay、regress 等命令 |
 | `replay` | 已记录工具输出与失败的离线回放、可选最终结果回归检查 |
 
-核心状态由 tracer 管理。嵌套 span 创建时读取当前 span 作为父节点，完成或失败时更新对应记录。上下文 API `capture_context` / `with_context` 用于显式传递 trace 上下文。
+单执行流可使用全局 tracer；并发请求和并行子任务使用 `TraceSession` 与不可变 `TraceContext`。`span_in` / `span_async_in` 的闭包接收独立子上下文，错误和取消都会结束相应 Span。旧 `capture_context` / `with_context` 仅用于单流程作用域，不是任务局部存储。
 
-项目核心完全使用 MoonBit 实现，不依赖 Python、Node.js、数据库或远程观测服务；真实 Bailian 示例使用 `moonbitlang/async@0.20.1` 启动系统 `curl`，API Key 通过标准输入配置传递。
+项目核心使用 MoonBit 实现，原子文件提交包含一个小型 C 原生辅助模块，不依赖 Python、Node.js、数据库或远程观测服务；真实 Bailian 示例使用 `moonbitlang/async@0.20.1` 启动系统 `curl`，API Key 通过标准输入配置传递。
 
 ## 五、MVP 完成情况
 
@@ -91,7 +91,7 @@ MVP 验证结果：
 
 ```text
 moon build       通过
-moon test        33 个测试通过，0 个失败（native，本地实测）
+moon test        45 个测试通过，0 个失败（native，本地实测）
 demo_agent       生成嵌套工具调用 trace
 research_agent   生成 3 条 trace，包含成功和错误路径
 CLI              list / show / export 验证通过
@@ -125,8 +125,9 @@ moon run examples/demo_agent
 export MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-mvp.XXXXXX)"
 moon run examples/research_agent
 moon run src/cli list
-moon run src/cli show trace_8
-moon run src/cli export trace_8 "$MOONTRACE_DIR/trace_8.html"
+TRACE_ID=$(moon run src/cli ids --errors | head -n 1)
+moon run src/cli show "$TRACE_ID"
+moon run src/cli export "$TRACE_ID" "$MOONTRACE_DIR/trace.html"
 MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-replay.XXXXXX)" moon run examples/replay_agent
 ```
 
@@ -141,6 +142,6 @@ MOONTRACE_DIR="$(mktemp -d /tmp/moontrace-replay.XXXXXX)" moon run examples/repl
 - **项目名称**：MoonTrace
 - **GitHub 仓库**：https://github.com/guo-dong-123/moon-trace
 - **技术栈**：MoonBit
-- **规模**：22 个 `.mbt` 文件，共约 3400 行（含测试与示例）
-- **测试**：33 个 MoonBit native 测试，全部通过
+- **版本**：0.1.2（并发上下文、原子存储、筛选联动与时间戳修正）
+- **测试**：45 个 MoonBit native 测试，全部通过
 - **许可证**：MIT

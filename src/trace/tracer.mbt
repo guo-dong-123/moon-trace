@@ -1,34 +1,44 @@
 // Global tracer state and span API
 
+///|
 priv struct Tracer {
-  mut current_trace : Option[Trace]
+  mut current_trace : Trace?
   mut span_stack : Array[String]
   mut span_clocks : Map[String, @bench.Timestamp]
+  mut trace_clock : @bench.Timestamp?
   mut next_id : Int
 }
 
+///|
 fn Tracer::new() -> Tracer {
   {
     current_trace: None,
     span_stack: [],
     span_clocks: Map([]),
+    trace_clock: None,
     next_id: 1,
   }
 }
 
+///|
 fn Tracer::gen_id(self : Tracer) -> String {
   let id = self.next_id
   self.next_id = self.next_id + 1
   "span_" + id.to_string()
 }
 
-fn Tracer::gen_trace_id(self : Tracer) -> String {
-  let id = self.next_id
-  self.next_id = self.next_id + 1
-  "trace_" + id.to_string()
+// OS entropy keeps IDs independent of process lifetime and local counters.
+
+///|
+fn new_trace_id() -> String {
+  match @env.rand(16) {
+    Some(bytes) => "trace_" + @hex.encode(bytes)
+    None => abort("MoonTrace: operating system randomness unavailable")
+  }
 }
 
-fn Tracer::current_span_id(self : Tracer) -> Option[String] {
+///|
+fn Tracer::current_span_id(self : Tracer) -> String? {
   if self.span_stack.length() == 0 {
     None
   } else {
@@ -37,56 +47,80 @@ fn Tracer::current_span_id(self : Tracer) -> Option[String] {
 }
 
 // Global singleton
+
+///|
 let global_tracer : @ref.Ref[Tracer] = @ref.Ref(Tracer::new())
 
-fn now_ms() -> Int {
-  @env.now().to_int()
+///|
+fn now_ms() -> Int64 {
+  @env.now().reinterpret_as_int64()
 }
 
-fn duration_end_ms(tracer : Tracer, span_id : String, start_time_ms : Int) -> Int {
+///|
+fn duration_end_ms(
+  tracer : Tracer,
+  span_id : String,
+  start_time_ms : Int64,
+) -> Int64 {
   match tracer.span_clocks.get(span_id) {
     None => start_time_ms
     Some(clock) => {
       tracer.span_clocks.remove(span_id)
-      let elapsed_ms = (@bench.monotonic_clock_end(clock) / 1000.0).to_int()
+      let elapsed_ms = (@bench.monotonic_clock_end(clock) / 1000.0).to_int64()
       start_time_ms + (if elapsed_ms < 0 { 0 } else { elapsed_ms })
     }
   }
 }
 
+///|
 /// Start a new trace. Must be called before any span.
 pub fn start_trace() -> String {
   let tracer = global_tracer.val
-  let trace_id = tracer.gen_trace_id()
+  let trace_id = new_trace_id()
   let trace = Trace::new(trace_id, now_ms())
   tracer.current_trace = Some(trace)
   tracer.span_stack = []
   tracer.span_clocks = Map([])
+  tracer.trace_clock = Some(@bench.monotonic_clock_start())
   trace_id
 }
 
+///|
 /// End the current trace and return it.
-pub fn end_trace() -> Option[Trace] {
+pub fn end_trace() -> Trace? {
   let tracer = global_tracer.val
   match tracer.current_trace {
     None => None
     Some(trace) => {
-      trace.finish(now_ms())
+      let end = match tracer.trace_clock {
+        Some(clock) =>
+          trace.start_time_ms +
+          (@bench.monotonic_clock_end(clock) / 1000.0).to_int64().max(0)
+        None => now_ms()
+      }
+      trace.finish(end)
       let result = Some(trace)
       tracer.current_trace = None
       tracer.span_stack = []
+      tracer.trace_clock = None
       result
     }
   }
 }
 
+///|
 /// Get the current trace (for inspection/testing).
-pub fn current_trace() -> Option[Trace] {
+pub fn current_trace() -> Trace? {
   global_tracer.val.current_trace
 }
 
+///|
 /// Execute a body within a named span, automatically recording input/output/duration/errors.
-pub fn[T : Show] span(name : String, input : Option[String], body : () -> T raise Failure) -> T raise Failure {
+pub fn[T : Show] span(
+  name : String,
+  input : String?,
+  body : () -> T raise Failure,
+) -> T raise Failure {
   let tracer = global_tracer.val
 
   // Auto-start a trace if none exists
@@ -153,6 +187,7 @@ pub fn[T : Show] span(name : String, input : Option[String], body : () -> T rais
   result
 }
 
+///|
 /// Execute an async body within a named span.
 ///
 /// This is the async counterpart of `span` for network-backed agent steps such
@@ -160,7 +195,7 @@ pub fn[T : Show] span(name : String, input : Option[String], body : () -> T rais
 /// errors to `Failure` so they are recorded consistently.
 pub async fn[T : Show] span_async(
   name : String,
-  input : Option[String],
+  input : String?,
   body : async () -> T raise Failure,
 ) -> T raise Failure {
   let tracer = global_tracer.val
@@ -220,40 +255,40 @@ pub async fn[T : Show] span_async(
   result
 }
 
+///|
 /// Add an event to the current span.
-pub fn add_event(name : String, data : Option[String]) -> Unit {
+pub fn add_event(name : String, data : String?) -> Unit {
   let tracer = global_tracer.val
   let current_id = tracer.current_span_id()
   match current_id {
     None => ()
-    Some(id) => {
+    Some(id) =>
       match tracer.current_trace {
         None => ()
-        Some(t) => {
+        Some(t) =>
           match t.get_span(id) {
             None => ()
             Some(s) => {
-              let event = { timestamp_ms: now_ms(), name, data }
+              let event = { timestamp_ms: now_ms(), name, data, }
               s.add_event(event)
               t.update_span(s)
             }
           }
-        }
       }
-    }
   }
 }
 
+///|
 /// Set metadata on the current span.
 pub fn set_metadata(key : String, value : String) -> Unit {
   let tracer = global_tracer.val
   let current_id = tracer.current_span_id()
   match current_id {
     None => ()
-    Some(id) => {
+    Some(id) =>
       match tracer.current_trace {
         None => ()
-        Some(t) => {
+        Some(t) =>
           match t.get_span(id) {
             None => ()
             Some(s) => {
@@ -261,12 +296,11 @@ pub fn set_metadata(key : String, value : String) -> Unit {
               t.update_span(s)
             }
           }
-        }
       }
-    }
   }
 }
 
+///|
 /// Print a human-readable trace tree to stdout (for testing/debugging).
 pub fn print_trace(trace : Trace) -> Unit {
   println("=== Trace \{trace.id} ===")
@@ -276,6 +310,7 @@ pub fn print_trace(trace : Trace) -> Unit {
   }
 }
 
+///|
 fn print_span_tree(trace : Trace, span_id : String, depth : Int) -> Unit {
   match trace.get_span(span_id) {
     None => ()
@@ -298,7 +333,9 @@ fn print_span_tree(trace : Trace, span_id : String, depth : Int) -> Unit {
         None => ""
         Some(e) => " error=" + e
       }
-      println("\{indent}[\{status_str}] \{span.name} (\{duration_str})\{input_str}\{output_str}\{error_str}")
+      println(
+        "\{indent}[\{status_str}] \{span.name} (\{duration_str})\{input_str}\{output_str}\{error_str}",
+      )
       let children = trace.get_children(span_id)
       for child in children {
         print_span_tree(trace, child.id, depth + 1)

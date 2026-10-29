@@ -1,151 +1,207 @@
-// JSON file-based storage implementation
-
+// Immutable JSON snapshots; directory contents are the source of truth.
+///|
 pub struct JsonFileStore {
   base_dir : String
+  priv mut error : String?
 }
 
+///|
+pub struct RecoveryReport {
+  trace_count : Int
+  issues : Array[String]
+  index_rebuilt : Bool
+}
+
+///|
 pub fn JsonFileStore::new(base_dir : String) -> JsonFileStore {
-  { base_dir: base_dir }
+  { base_dir, error: None, }
 }
 
-/// Default store at ~/.moontrace/traces
+///|
 pub fn JsonFileStore::default() -> JsonFileStore {
-  let home = match @env.get_env_var("HOME") {
-    None => "/tmp"
-    Some(h) => h
-  }
-  let dir = home + "/.moontrace/traces"
-  { base_dir: dir }
+  JsonFileStore::new(
+    @env.get_env_var("HOME").unwrap_or("/tmp") + "/.moontrace/traces",
+  )
 }
 
-fn JsonFileStore::trace_path(self : JsonFileStore, trace_id : String) -> String {
-  self.base_dir + "/" + trace_id + ".json"
+///|
+/// Last diagnostic for a Bool/Option operation.
+pub fn JsonFileStore::last_error(self : JsonFileStore) -> String? {
+  self.error
 }
 
-fn JsonFileStore::index_path(self : JsonFileStore) -> String {
-  self.base_dir + "/index.json"
-}
-
-fn JsonFileStore::ensure_dir(self : JsonFileStore) -> Bool {
-  if @fs.path_exists(self.base_dir) {
-    return true
-  }
-  // Create parent directory first if needed.
-  let home = match @env.get_env_var("HOME") {
-    None => "/tmp"
-    Some(h) => h
-  }
-  let parent = home + "/.moontrace"
-  if !@fs.path_exists(parent) {
-    try { @fs.create_dir(parent) } catch { _ => return false }
-  }
-  try {
-    @fs.create_dir(self.base_dir)
-    true
-  } catch {
-    _ => false
-  }
-}
-
-fn JsonFileStore::read_index(self : JsonFileStore) -> Array[TraceSummary] {
-  let path = self.index_path()
-  if !@fs.path_exists(path) {
-    return []
-  }
-  try {
-    let content = @fs.read_file_to_string(path)
-    let json = @json.parse(content)
-    let result : Array[TraceSummary] = @json.from_json(json)
-    result
-  } catch {
-    _ => []
-  }
-}
-
-fn JsonFileStore::write_index(self : JsonFileStore, summaries : Array[TraceSummary]) -> Bool {
-  if !self.ensure_dir() {
+///|
+fn valid_trace_id(id : String) -> Bool {
+  if id.length() == 0 || id.length() > 256 || id == "index" {
     return false
   }
-  let json = @json.to_json(summaries)
-  let content = json.stringify()
-  try {
-    @fs.write_string_to_file(self.index_path(), content)
-    true
-  } catch {
-    _ => false
-  }
-}
-
-pub fn JsonFileStore::save(self : JsonFileStore, trace : @trace.Trace) -> Bool {
-  if !self.ensure_dir() {
-    return false
-  }
-  // Write trace file
-  let json = @json.to_json(trace)
-  let content = json.stringify()
-  let trace_saved = try {
-    @fs.write_string_to_file(self.trace_path(trace.id), content)
-    true
-  } catch {
-    _ => false
-  }
-  if !trace_saved {
-    return false
-  }
-  // Update index
-  let summaries = self.read_index()
-  let filtered : Array[TraceSummary] = []
-  for s in summaries {
-    if s.trace_id != trace.id {
-      filtered.push(s)
+  for c in id {
+    if !(c >= 'a' && c <= 'z') &&
+      !(c >= 'A' && c <= 'Z') &&
+      !(c >= '0' && c <= '9') &&
+      c != '_' &&
+      c != '-' {
+      return false
     }
   }
-  filtered.push(trace.to_summary())
-  self.write_index(filtered)
+  true
 }
 
-pub fn JsonFileStore::load(self : JsonFileStore, trace_id : String) -> Option[@trace.Trace] {
-  let path = self.trace_path(trace_id)
-  if !@fs.path_exists(path) {
+///|
+fn JsonFileStore::trace_path(self : JsonFileStore, id : String) -> String {
+  self.base_dir + "/" + id + ".json"
+}
+
+///|
+pub fn JsonFileStore::save(self : JsonFileStore, trace : @trace.Trace) -> Bool {
+  self.error = None
+  if !valid_trace_id(trace.id) {
+    self.error = Some(
+      "Invalid trace ID; only letters, digits, '-' and '_' are allowed",
+    )
+    return false
+  }
+  if !ensure_directories(self.base_dir) ||
+    !(@fs.is_dir(self.base_dir) catch { _ => false }) {
+    self.error = Some("Cannot create trace directory: " + self.base_dir)
+    return false
+  }
+  let content = trace.to_json().stringify()
+  match atomic_write(self.trace_path(trace.id), content, false) {
+    0 => true
+    1 => {
+      let identical = try {
+        let existing : @trace.Trace = @json.from_json(
+          @json.parse(@fs.read_file_to_string(self.trace_path(trace.id))),
+        )
+        existing.to_json() == trace.to_json()
+      } catch {
+        _ => false
+      }
+      if !identical {
+        self.error = Some(
+          "Trace ID already exists with different data: " + trace.id,
+        )
+      }
+      identical
+    }
+    _ => {
+      self.error = Some(
+        "Atomic trace write failed (native filesystem required): " + trace.id,
+      )
+      false
+    }
+  }
+}
+
+///|
+pub fn JsonFileStore::load(
+  self : JsonFileStore,
+  trace_id : String,
+) -> @trace.Trace? {
+  self.error = None
+  if !valid_trace_id(trace_id) {
+    self.error = Some("Invalid trace ID: " + trace_id)
     return None
   }
+  let path = self.trace_path(trace_id)
   try {
-    let content = @fs.read_file_to_string(path)
-    let json = @json.parse(content)
-    let trace : @trace.Trace = @json.from_json(json)
-    Some(trace)
+    let trace : @trace.Trace = @json.from_json(
+      @json.parse(@fs.read_file_to_string(path)),
+    )
+    if trace.id != trace_id {
+      self.error = Some("Trace ID does not match filename: " + trace_id)
+      None
+    } else {
+      Some(trace)
+    }
   } catch {
-    _ => None
+    error => {
+      self.error = Some(
+        "Cannot read or decode trace: " + path + ": " + error.to_string(),
+      )
+      None
+    }
   }
 }
 
+///|
+fn JsonFileStore::scan(
+  self : JsonFileStore,
+) -> (Array[TraceSummary], Array[String]) {
+  let summaries : Array[TraceSummary] = []
+  let issues : Array[String] = []
+  if !@fs.path_exists(self.base_dir) {
+    return (summaries, issues)
+  }
+  let files = @fs.read_dir(self.base_dir) catch {
+    _ => {
+      issues.push("Cannot read trace directory: " + self.base_dir)
+      return (summaries, issues)
+    }
+  }
+  for file in files {
+    if file == "index.json" || !file.has_suffix(".json") {
+      continue
+    }
+    let id = file[:file.length() - 5].to_owned()
+    match self.load(id) {
+      Some(trace) => summaries.push(trace.to_summary())
+      None => issues.push(self.error.unwrap_or("Unreadable trace: " + file))
+    }
+  }
+  summaries.sort_by((a, b) => {
+    if a.start_time_ms == b.start_time_ms {
+      a.trace_id.compare(b.trace_id)
+    } else if a.start_time_ms > b.start_time_ms {
+      -1
+    } else {
+      1
+    }
+  })
+  (summaries, issues)
+}
+
+///|
 pub fn JsonFileStore::list(self : JsonFileStore) -> Array[TraceSummary] {
-  let summaries = self.read_index()
-  summaries.sort_by((a, b) => b.start_time_ms - a.start_time_ms)
+  let (summaries, issues) = self.scan()
+  self.error = if issues.is_empty() { None } else { Some(issues.join("; ")) }
   summaries
 }
 
+///|
+/// Rebuild the legacy index cache from valid snapshots. Malformed files are
+/// reported and left intact; a missing/corrupt/stale index cannot hide traces.
+pub fn JsonFileStore::repair(self : JsonFileStore) -> RecoveryReport {
+  let (summaries, issues) = self.scan()
+  let rebuilt = ensure_directories(self.base_dir) &&
+    atomic_write(
+      self.base_dir + "/index.json",
+      summaries.to_json().stringify(),
+      true,
+    ) ==
+    0
+  if !rebuilt {
+    issues.push("Cannot rebuild index cache")
+  }
+  self.error = if issues.is_empty() { None } else { Some(issues.join("; ")) }
+  { trace_count: summaries.length(), issues, index_rebuilt: rebuilt, }
+}
+
+///|
 pub fn JsonFileStore::delete(self : JsonFileStore, trace_id : String) -> Bool {
-  let path = self.trace_path(trace_id)
-  if !@fs.path_exists(path) {
+  self.error = None
+  if !valid_trace_id(trace_id) {
+    self.error = Some("Invalid trace ID")
     return false
   }
-  let removed = try {
-    @fs.remove_file(path)
+  try {
+    @fs.remove_file(self.trace_path(trace_id))
     true
   } catch {
-    _ => false
-  }
-  if !removed {
-    return false
-  }
-  // Update index
-  let summaries = self.read_index()
-  let filtered : Array[TraceSummary] = []
-  for s in summaries {
-    if s.trace_id != trace_id {
-      filtered.push(s)
+    _ => {
+      self.error = Some("Cannot delete trace: " + trace_id)
+      false
     }
   }
-  self.write_index(filtered)
 }

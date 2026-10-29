@@ -1,6 +1,6 @@
 name = "guo-dong-123/moon-trace"
 
-version = "0.1.1"
+version = "0.1.2"
 
 readme = "README.md"
 
@@ -8,7 +8,7 @@ repository = "https://github.com/guo-dong-123/moon-trace"
 
 license = "MIT"
 
-keywords = ["trace", "observability", "agent", "debugging", "tui"]
+keywords = [ "trace", "observability", "agent", "debugging", "tui" ]
 
 preferred_target = "native"
 

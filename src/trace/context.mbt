@@ -1,23 +1,25 @@
-// Async context propagation support
+// Legacy single-flow scope snapshots. Concurrent code uses TraceSession and
+// span_async_in instead; this global API is not task-local storage.
 
-/// A snapshot of the current tracing context, for passing across async boundaries.
+///|
+/// A snapshot of the current global scope within the same trace.
 pub struct SpanContext {
   trace_id : String
-  span_id : Option[String]
+  span_id : String?
 }
 
-/// Capture the current tracing context. Call before spawning an async task.
-pub fn capture_context() -> Option[SpanContext] {
+///|
+/// Capture the current scope. For concurrent tasks use TraceSession::context.
+pub fn capture_context() -> SpanContext? {
   let tracer = global_tracer.val
   match tracer.current_trace {
     None => None
-    Some(trace) => Some({
-      trace_id: trace.id,
-      span_id: tracer.current_span_id(),
-    })
+    Some(trace) =>
+      Some({ trace_id: trace.id, span_id: tracer.current_span_id(), })
   }
 }
 
+///|
 /// Restore a captured context, execute body, then restore original context.
 pub fn[T] with_context(ctx : SpanContext, body : () -> T) -> T {
   let tracer = global_tracer.val
@@ -27,7 +29,7 @@ pub fn[T] with_context(ctx : SpanContext, body : () -> T) -> T {
 
   // Restore captured context (if trace still exists)
   match tracer.current_trace {
-    Some(t) => {
+    Some(t) =>
       if t.id == ctx.trace_id {
         match ctx.span_id {
           Some(id) => {
@@ -37,7 +39,6 @@ pub fn[T] with_context(ctx : SpanContext, body : () -> T) -> T {
           None => tracer.span_stack = []
         }
       }
-    }
     None => ()
   }
 

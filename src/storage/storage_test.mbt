@@ -1,28 +1,29 @@
 // Tests for storage module
 
-fn make_test_trace(name : String, with_error : Bool) -> @trace.Trace raise Failure {
+///|
+fn make_test_trace(
+  name : String,
+  with_error : Bool,
+) -> @trace.Trace raise Failure {
   ignore(@trace.start_trace())
-  ignore(@trace.span(name, None, () => {
-    ignore(@trace.span("sub_task", None, () => {
-      "sub"
-    }))
-    if with_error {
-      try {
-        @trace.span("failing", None, () => {
-          raise Failure("test error")
-        })
-      } catch {
-        Failure(_) => ignore("recovered")
+  ignore(
+    @trace.span(name, None, () => {
+      ignore(@trace.span("sub_task", None, () => "sub"))
+      if with_error {
+        @trace.span("failing", None, () => raise Failure("test error")) catch {
+          Failure(_) => ignore("recovered")
+        }
       }
-    }
-    "done"
-  }))
+      "done"
+    }),
+  )
   match @trace.end_trace() {
     None => abort("no trace generated")
     Some(t) => t
   }
 }
 
+///|
 test "memory_store_save_and_load" {
   let store = MemoryStore::new()
   let trace = make_test_trace("test_op", false)
@@ -39,6 +40,7 @@ test "memory_store_save_and_load" {
   }
 }
 
+///|
 test "memory_store_list" {
   let store = MemoryStore::new()
   store.save(make_test_trace("op_a", false))
@@ -54,6 +56,7 @@ test "memory_store_list" {
   assert_true(error_count == 1)
 }
 
+///|
 test "memory_store_delete" {
   let store = MemoryStore::new()
   let trace = make_test_trace("op_a", false)
@@ -66,6 +69,7 @@ test "memory_store_delete" {
   assert_true(!store.delete("nonexistent"))
 }
 
+///|
 test "query_filter_error_only" {
   let store = MemoryStore::new()
   store.save(make_test_trace("ok_op", false))
@@ -79,6 +83,7 @@ test "query_filter_error_only" {
   inspect(results[0].trace_id, content=err_id)
 }
 
+///|
 test "query_filter_by_name" {
   let store = MemoryStore::new()
   store.save(make_test_trace("search_agent", false))
@@ -89,6 +94,7 @@ test "query_filter_by_name" {
   assert_true(results.length() == 2)
 }
 
+///|
 test "trace_summary_has_correct_fields" {
   let store = MemoryStore::new()
   let trace = make_test_trace("my_op", false)
@@ -106,10 +112,13 @@ test "trace_summary_has_correct_fields" {
   assert_true(!summary.has_error)
 }
 
+///|
 test "json_file_store_roundtrip" {
   let test_dir = "/tmp/moontrace_unit_test_002"
   // Clean up
-  try { @fs.remove_dir(test_dir) } catch { _ => () }
+  @fs.remove_dir(test_dir) catch {
+    _ => ()
+  }
 
   let store = JsonFileStore::new(test_dir)
   let trace = make_test_trace("file_op", false)
@@ -127,15 +136,90 @@ test "json_file_store_roundtrip" {
   }
 
   // Clean up
-  try { @fs.remove_dir(test_dir) } catch { _ => () }
+  @fs.remove_dir(test_dir) catch {
+    _ => ()
+  }
 }
 
+///|
 test "json_file_store_reports_save_failure" {
   let blocked_path = "/tmp/moontrace_save_failure"
-  try { @fs.remove_file(blocked_path) } catch { _ => () }
+  @fs.remove_file(blocked_path) catch {
+    _ => ()
+  }
   @fs.write_string_to_file(blocked_path, "not a directory")
   let store = JsonFileStore::new(blocked_path)
   let trace = make_test_trace("blocked_save", false)
   assert_true(!store.save(trace))
-  try { @fs.remove_file(blocked_path) } catch { _ => () }
+  @fs.remove_file(blocked_path) catch {
+    _ => ()
+  }
+}
+
+///|
+test "file store recovers stale or corrupt index and reports corrupt snapshots" {
+  let trace = make_test_trace("recovery", false)
+  let dir = "/tmp/moontrace-test-" + trace.id + "/nested/traces"
+  let store = JsonFileStore::new(dir)
+  assert_true(store.save(trace))
+  @fs.write_string_to_file(dir + "/index.json", "{broken cache")
+  assert_eq(store.list().length(), 1)
+  @fs.write_string_to_file(dir + "/broken.json", "{broken trace")
+  @fs.write_string_to_file(dir + "/ignored.json.tmp-abcd", "partial write")
+  let report = store.repair()
+  assert_true(report.index_rebuilt)
+  assert_eq(report.trace_count, 1)
+  assert_eq(report.issues.length(), 1)
+  assert_true(@fs.path_exists(dir + "/broken.json"))
+  assert_eq(store.list().length(), 1)
+  assert_true(store.last_error() is Some(_))
+  assert_true(store.load(trace.id) is Some(_))
+  assert_true(store.last_error() is None)
+  assert_true(store.delete(trace.id))
+  assert_eq(store.list().length(), 0)
+  @fs.remove_file(dir + "/broken.json")
+  @fs.remove_file(dir + "/index.json")
+  @fs.remove_file(dir + "/ignored.json.tmp-abcd")
+  @fs.remove_dir(dir)
+  @fs.remove_dir(dir[:dir.length() - 7].to_owned())
+  @fs.remove_dir(dir[:dir.length() - 14].to_owned())
+}
+
+///|
+test "file store refuses conflicting overwrite and unsafe IDs" {
+  let trace = make_test_trace("immutable", false)
+  let dir = "/tmp/moontrace-test-" + trace.id
+  let store = JsonFileStore::new(dir)
+  assert_true(store.save(trace))
+  assert_true(store.save(trace)) // identical retry is idempotent
+  let original = @fs.read_file_to_string(dir + "/" + trace.id + ".json")
+  let conflicting : @trace.Trace = @json.from_json(
+    @json.parse(original.replace(old="done", new="conflicting replacement")),
+  )
+  assert_true(!store.save(conflicting))
+  assert_true(store.last_error().unwrap().contains("already exists"))
+  assert_eq(@fs.read_file_to_string(dir + "/" + trace.id + ".json"), original)
+  assert_true(store.load("../outside") is None)
+  assert_true(!store.delete("../outside"))
+  assert_true(store.load("index") is None)
+  @fs.remove_file(dir + "/" + trace.id + ".json")
+  @fs.remove_dir(dir)
+}
+
+///|
+test "unchanged legacy snapshot can be saved idempotently" {
+  let original = make_test_trace("legacy_snapshot", false)
+  let dir = "/tmp/moontrace-legacy-" + original.id
+  let store = JsonFileStore::new(dir)
+  assert_true(store.save(original))
+  let path = dir + "/" + original.id + ".json"
+  // Older derived encoders omitted absent optional fields.
+  let legacy = @fs.read_file_to_string(path)
+    .replace_all(old="\"parent_id\":null,", new="")
+    .replace_all(old="\"error_message\":null,", new="")
+  @fs.write_string_to_file(path, legacy)
+  assert_true(store.save(store.load(original.id).unwrap()))
+  assert_eq(@fs.read_file_to_string(path), legacy)
+  @fs.remove_file(path)
+  @fs.remove_dir(dir)
 }

@@ -1,13 +1,37 @@
 // TUI viewer: render traces with ANSI colors and tree layout
 
 // ANSI color helpers
-fn color_red(s : String) -> String { "\u{001b}[31m" + s + "\u{001b}[0m" }
-fn color_green(s : String) -> String { "\u{001b}[32m" + s + "\u{001b}[0m" }
-fn color_yellow(s : String) -> String { "\u{001b}[33m" + s + "\u{001b}[0m" }
-fn color_cyan(s : String) -> String { "\u{001b}[36m" + s + "\u{001b}[0m" }
-fn color_gray(s : String) -> String { "\u{001b}[90m" + s + "\u{001b}[0m" }
-fn color_bold(s : String) -> String { "\u{001b}[1m" + s + "\u{001b}[0m" }
+///|
+fn color_red(s : String) -> String {
+  "\u{001b}[31m" + s + "\u{001b}[0m"
+}
 
+///|
+fn color_green(s : String) -> String {
+  "\u{001b}[32m" + s + "\u{001b}[0m"
+}
+
+///|
+fn color_yellow(s : String) -> String {
+  "\u{001b}[33m" + s + "\u{001b}[0m"
+}
+
+///|
+fn color_cyan(s : String) -> String {
+  "\u{001b}[36m" + s + "\u{001b}[0m"
+}
+
+///|
+fn color_gray(s : String) -> String {
+  "\u{001b}[90m" + s + "\u{001b}[0m"
+}
+
+///|
+fn color_bold(s : String) -> String {
+  "\u{001b}[1m" + s + "\u{001b}[0m"
+}
+
+///|
 fn status_color(status : @trace.SpanStatus, text : String) -> String {
   match status {
     @trace.Ok => color_green(text)
@@ -17,6 +41,7 @@ fn status_color(status : @trace.SpanStatus, text : String) -> String {
   }
 }
 
+///|
 fn status_label(status : @trace.SpanStatus) -> String {
   match status {
     @trace.Ok => "ok"
@@ -26,6 +51,7 @@ fn status_label(status : @trace.SpanStatus) -> String {
   }
 }
 
+///|
 /// Render a single span line with tree prefix
 fn render_span(span : @trace.Span, prefix : String, is_last : Bool) -> String {
   let connector = if is_last { "└── " } else { "├── " }
@@ -34,7 +60,15 @@ fn render_span(span : @trace.Span, prefix : String, is_last : Bool) -> String {
     None => "?ms"
     Some(d) => "\{d}ms"
   }
-  let mut line = prefix + connector + "[" + status + "] " + color_cyan(span.name) + " (" + duration + ")"
+  let mut line = prefix +
+    connector +
+    "[" +
+    status +
+    "] " +
+    color_cyan(span.name) +
+    " (" +
+    duration +
+    ")"
   match span.error_message {
     None => ()
     Some(msg) => line = line + " " + color_red("error=" + msg)
@@ -42,22 +76,47 @@ fn render_span(span : @trace.Span, prefix : String, is_last : Bool) -> String {
   match span.input {
     None => ()
     Some(inp) => {
-      let short = if inp.length() > 40 { inp[:40].to_owned() + "..." } else { inp }
-      line = line + "\n" + prefix + (if is_last { "    " } else { "│   " }) + color_gray("input: " + short)
+      let short = if inp.length() > 40 {
+        inp[:40].to_owned() + "..."
+      } else {
+        inp
+      }
+      line = line +
+        "\n" +
+        prefix +
+        (if is_last { "    " } else { "│   " }) +
+        color_gray("input: " + short)
     }
   }
   match span.output {
     None => ()
     Some(out) => {
-      let short = if out.length() > 40 { out[:40].to_owned() + "..." } else { out }
-      line = line + "\n" + prefix + (if is_last { "    " } else { "│   " }) + color_gray("output: " + short)
+      let short = if out.length() > 40 {
+        out[:40].to_owned() + "..."
+      } else {
+        out
+      }
+      line = line +
+        "\n" +
+        prefix +
+        (if is_last { "    " } else { "│   " }) +
+        color_gray("output: " + short)
     }
   }
   line
 }
 
+///|
 /// Recursively render span tree
-fn render_tree(trace : @trace.Trace, span_id : String, prefix : String, is_last : Bool) -> String {
+fn render_tree(
+  trace : @trace.Trace,
+  span_id : String,
+  prefix : String,
+  is_last : Bool,
+  visited : Map[String, Bool],
+) -> String {
+  if visited.contains(span_id) { return "" }
+  visited[span_id] = true
   let span = match trace.spans.get(span_id) {
     None => return ""
     Some(s) => s
@@ -75,11 +134,14 @@ fn render_tree(trace : @trace.Trace, span_id : String, prefix : String, is_last 
   for child_id in children {
     i = i + 1
     let child_last = i == children.length()
-    result = result + "\n" + render_tree(trace, child_id, child_prefix, child_last)
+    result = result +
+      "\n" +
+      render_tree(trace, child_id, child_prefix, child_last, visited)
   }
   result
 }
 
+///|
 /// Render full trace detail view
 pub fn render_trace_detail(trace : @trace.Trace) -> String {
   let lines : Array[String] = []
@@ -89,43 +151,60 @@ pub fn render_trace_detail(trace : @trace.Trace) -> String {
   // Stats
   let mut total_spans = 0
   let mut error_count = 0
-  let mut total_duration = 0
   for span in trace.spans.values() {
     total_spans = total_spans + 1
     match span.status {
       @trace.Error => error_count = error_count + 1
       _ => ()
     }
-    match span.duration_ms {
-      None => ()
-      Some(d) => total_duration = total_duration + d
-    }
   }
-  lines.push("Spans: \{total_spans}  Errors: \{error_count}  Total duration: \{total_duration}ms")
+  let elapsed = match trace.duration_ms() {
+    Some(ms) => "\{ms}ms"
+    None => "running"
+  }
+  lines.push(
+    "Spans: \{total_spans}  Errors: \{error_count}  Elapsed: \{elapsed}  Cumulative span time: \{trace.cumulative_span_duration_ms()}ms",
+  )
   lines.push("")
 
   // Span tree
-  match trace.root_span_id {
-    None => lines.push(color_gray("(no root span)"))
-    Some(root_id) => {
-      lines.push(render_tree(trace, root_id, "", true))
+  let visited : Map[String, Bool] = Map([])
+  let ids = trace.spans.keys().to_array()
+  ids.sort()
+  for id in ids {
+    let span = trace.spans[id]
+    if span.parent_id is None || (span.parent_id is Some(parent) && !trace.spans.contains(parent)) {
+      lines.push(render_tree(trace, id, "", true, visited))
     }
   }
+  for id in ids {
+    if !visited.contains(id) { lines.push(render_tree(trace, id, "", true, visited)) }
+  }
+  if ids.is_empty() { lines.push(color_gray("(no spans)")) }
   lines.join("\n")
 }
 
+///|
 /// Render trace list table
 pub fn render_trace_list(summaries : Array[@storage.TraceSummary]) -> String {
   let lines : Array[String] = []
   lines.push(color_bold("=== MoonTrace: Saved Traces ==="))
   lines.push("")
   if summaries.length() == 0 {
-    lines.push(color_gray("No traces found. Run an agent with MoonTrace instrumentation first."))
+    lines.push(
+      color_gray(
+        "No traces found. Run an agent with MoonTrace instrumentation first.",
+      ),
+    )
     return lines.join("\n")
   }
   // Header
   lines.push(color_gray("  #  ID          Name                  Spans  Status"))
-  lines.push(color_gray("  ─  ──────────  ────────────────────  ─────  ──────"))
+  lines.push(
+    color_gray(
+      "  ─  ──────────  ────────────────────  ─────  ──────",
+    ),
+  )
   let mut i = 0
   for s in summaries {
     i = i + 1
@@ -133,15 +212,31 @@ pub fn render_trace_list(summaries : Array[@storage.TraceSummary]) -> String {
       None => "?"
       Some(n) => if n.length() > 20 { n[:20].to_owned() } else { n }
     }
-    let status = if s.has_error { color_red("error") } else { color_green("ok") }
+    let status = if s.has_error {
+      color_red("error")
+    } else {
+      color_green("ok")
+    }
     let idx = "\{i}"
-    lines.push("  " + idx + "  " + s.trace_id + "  " + name + "  \{s.span_count}      " + status)
+    lines.push(
+      "  " +
+      idx +
+      "  " +
+      s.trace_id +
+      "  " +
+      name +
+      "  \{s.span_count}      " +
+      status,
+    )
   }
   lines.push("")
-  lines.push(color_gray("Use 'moon run src/cli show <id>' to view trace details"))
+  lines.push(
+    color_gray("Use 'moon run src/cli show <id>' to view trace details"),
+  )
   lines.join("\n")
 }
 
+///|
 /// Main TUI entry: parse args and render
 pub fn run_tui(store : @storage.JsonFileStore) -> String {
   let args = @env.args()
@@ -176,5 +271,7 @@ pub fn run_tui(store : @storage.JsonFileStore) -> String {
     lines.push("  help              Show this help")
     return lines.join("\n")
   }
-  color_red("Unknown command: " + cmd + ". Use 'moon run src/cli help' for usage.")
+  color_red(
+    "Unknown command: " + cmd + ". Use 'moon run src/cli help' for usage.",
+  )
 }
